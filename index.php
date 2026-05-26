@@ -2,7 +2,6 @@
 ob_start();
 session_start();
 
-// paths fot the data
 $adminID = 'admin'; 
 $rDir = 'rooms/';
 $up = 'uploads/';
@@ -34,7 +33,6 @@ if($myU && !$myN) $myN = $myU;
 $myContactsF = $rDir . "contacts_" . $myU . ".db.php";
 $userModsFile = $rDir . "mods_user_" . $myU . ".db.php";
 
-// dark theme
 $theme = $_COOKIE['ce_theme'] ?? 'light';
 if(isset($_GET['toggle_theme']) && $myU) {
     $theme = ($theme == 'dark') ? 'light' : 'dark';
@@ -42,7 +40,6 @@ if(isset($_GET['toggle_theme']) && $myU) {
     header("Location: " . $_SERVER['HTTP_REFERER']); exit;
 }
 
-// statud online or offline
 if($myU) {
     $onlines = file_exists($onlineF) ? file($onlineF) : [];
     $newOnlines = ["<?php die(); ?>\n"];
@@ -116,7 +113,6 @@ function parse_msg($m) {
     return nl2br($m);
 }
 
-// a new function that shows what you skip
 function get_last_view_time($u, $target) {
     global $unreadF; if(!file_exists($unreadF)) return 0;
     foreach(file($unreadF) as $l) {
@@ -160,9 +156,6 @@ if($to == 'all') $curF = $rDir . "global.db.php";
 $view = $_GET['view'] ?? 'chat';
 if($myU && $view == 'chat') { set_last_view_time($myU, $to); }
 
-// --- kill words that you say
-
-// there is a words killer
 if(isset($_GET['del_msg']) && $myU) {
     $target_mid = $_GET['del_msg'];
     if(file_exists($curF)) {
@@ -183,7 +176,6 @@ if(isset($_GET['del_msg']) && $myU) {
     header("Location: ?view=chat&to=$to"); exit;
 }
 
-// reactions
 if(isset($_GET['add_reac']) && $myU) {
     $mid = preg_replace('/[^a-z0-9]/', '', $_GET['mid']); 
     $type = preg_replace('/[^a-z0-9\.]/', '', $_GET['type']); 
@@ -196,7 +188,6 @@ if(isset($_GET['add_reac']) && $myU) {
     header("Location: " . $_SERVER['HTTP_REFERER']); exit;
 }
 
-// add a contacts
 if(isset($_GET['add_c']) && $myU) {
     $cid = preg_replace('/[^a-z0-9]/', '', $_GET['add_c']);
     $cn = htmlspecialchars($_GET['n']);
@@ -204,13 +195,11 @@ if(isset($_GET['add_c']) && $myU) {
     header("Location: ?view=contacts"); exit;
 }
 
-// edit avatar
 if(isset($_POST['up_ava']) && $myU){
     if(!empty($_FILES['ava_file']['tmp_name'])) move_uploaded_file($_FILES['ava_file']['tmp_name'], $avatarDir . md5($myU) . '.png');
     header("Location: ?view=profile"); exit;
 }
 
-// add a group
 if (isset($_POST['create_room']) && $myU) {
     $name = htmlspecialchars($_POST['r_name']); $type = $_POST['r_type']; 
     $id = bin2hex(openssl_random_pseudo_bytes(4));
@@ -232,7 +221,6 @@ if(isset($_GET['toggle_my_mod']) && $myU) {
     header("Location: ?view=mod_store"); exit;
 }
 
-// login
 if(isset($_POST['login'])){
     $u = strtolower(preg_replace('/[^a-z0-9]/', '', $_POST['u_id']));
     $p = $_POST['pwd'] ?? ''; $n = htmlspecialchars($_POST['dn'] ?? $u);
@@ -254,7 +242,6 @@ if(isset($_POST['login'])){
 
 if(isset($_GET['logout'])){ session_destroy(); header("Location: index.php"); exit; }
 
-// sending
 if($myU && isset($_POST['send_msg'])){
     $m = $_POST['msg'] ?? ''; $fT = "";
     if(!empty($_FILES['f']['name'])){
@@ -266,8 +253,7 @@ if($myU && isset($_POST['send_msg'])){
     if($m || $fT) db_append($curF, "$myN|".v_crypt($m.($m&&$fT?" ":"").$fT, $crypto_key)."|".date('H:i')."|$myU");
     header("Location: ?view=$view&to=$to"); exit;
 }
-
-// global new messsges 
+ 
 $has_global_new = has_new_messages($myU, 'all', $rDir . 'global.db.php');
 ?>
 <!DOCTYPE html>
@@ -280,7 +266,6 @@ $has_global_new = has_new_messages($myU, 'all', $rDir . 'global.db.php');
         * { margin:0; padding:0; box-sizing:border-box; }
         html, body { height:100%; width:100%; overflow:hidden; }
         
-        /* color themes*/
         body.theme-light { background:#000; color:#839496; }
         body.theme-light .box { background:#eee8d5; color:#073642; }
         body.theme-light #chat, body.theme-light .main-panel { background:#fff; color:#333; }
@@ -318,16 +303,72 @@ $has_global_new = has_new_messages($myU, 'all', $rDir . 'global.db.php');
 <body class="theme-<?php echo $theme; ?>">
 <div class="box">
     <?php if(!$myU): ?>
-        <div style="height:100%; display:flex; align-items:center; justify-content:center; background:#000;">
-            <div style="background:#111; padding:40px; border-radius:10px; text-align:center; width:90%; max-width:350px;">
-                <h2 style="color:#a01ae8; margin-bottom:20px;">CrossEra</h2>
-                <form method="POST">
-                    <input name="u_id" placeholder="ID" required style="width:100%; padding:8px; margin:5px 0; background:#222; color:#fff; border:1px solid #333; border-radius:3px;"><br>
-                    <input name="dn" placeholder="Ник" style="width:100%; padding:8px; margin:5px 0; background:#222; color:#fff; border:1px solid #333; border-radius:3px;"><br>
-                    <input name="pwd" type="password" placeholder="Пароль" required style="width:100%; padding:8px; margin:5px 0; background:#222; color:#fff; border:1px solid #333; border-radius:3px;"><br>
-                    <input type="submit" name="login" value="ВХОД" class="btn" style="width:100%; margin-top:10px;">
-                </form>
-                <p style="color:#666; font-size:9px; margin-top:30px;">&copy; Impisre Software</p>
+        <div class="hdr">
+            <div style="display:flex; align-items:center;">
+                <div style="width:24px; height:24px; border-radius:50%; background:#586e75; color:white; text-align:center; line-height:24px; font-size:10px;">G</div>
+                <span style="margin-left:5px; color:white;">Гость (Вход в систему)</span>
+            </div>
+            <span style="font-size:10px; opacity:0.8;">CrossEra v1.0 Hybrid</span>
+        </div>
+
+        <div class="nav">
+            <a href="#" class="active">Главная / Инфо</a>
+            <a href="#auth-section">Авторизация</a>
+        </div>
+
+        <div class="content" style="overflow-y:auto;">
+            <div class="main-panel" style="line-height:1.6;">
+                
+                <div style="text-align:center; margin-bottom:15px; background:#fff; padding:10px; border-radius:5px; border:1px solid rgba(0,0,0,0.1);">
+                    <img src="кросс-платформеность.png" alt="CrossEra на девайсах" style="max-width:100%; height:auto; border-radius:3px;">
+                </div>
+
+                <div style="background:#a01ae8; color:white; padding:10px; margin-bottom:15px; font-size:11px; border-radius:3px; text-align:center; font-weight:bold;">
+                    Impisre Software представляет: кросс-платформенный защищённый мессенджер CrossEra.
+                </div>
+
+                <h3>Возможности системы:</h3><br>
+
+                <div class="mod-card">
+                    <b>Защита AES-128 шифрованием</b>
+                    <p style="font-size:11px; opacity:0.8; margin-top:4px;">Шифрование текстовых пакетов на сервере. Ваши файлы баз данных защищены от прямого чтения злоумышленниками.</p>
+                </div>
+
+                <div class="mod-card">
+                    <b>Кросс-платформенность</b>
+                    <p style="font-size:11px; opacity:0.8; margin-top:4px;">Полноценная работа на ретро-смартфонах (Symbian S60v5, Windows Mobile 6.x), КПК, старых ПК под Windows и любых современных смартфонах.</p>
+                </div>
+
+                <div class="mod-card">
+                    <b> Мод-система</b>
+                    <p style="font-size:11px; opacity:0.8; margin-top:4px;">Прямая динамическая кастомизация. Возможность подключать и расширять исполняемую логику приложения через персональный репозиторий модулей.</p>
+                </div>
+
+                <div class="mod-card">
+                    <b> Темы оформления и Статусы</b>
+                    <p style="font-size:11px; opacity:0.8; margin-top:4px;">Индикация нахождения пользователей в сети в реальном времени, а также поддержка легкого и ночного режимов для снижения нагрузки на глаза.</p>
+                </div>
+
+                <hr style="margin:20px 0; opacity:0.2;">
+                <h3 id="auth-section" style="text-align:center;">Вход / Быстрая регистрация</h3><br>
+                
+                <div class="mod-card" style="max-width:320px; margin:0 auto; padding:15px;">
+                    <form method="POST">
+                        <label style="font-size:10px; display:block; margin-bottom:2px;">ID пользователя (только латиница):</label>
+                        <input name="u_id" required style="width:100%; padding:6px; margin-bottom:8px; border-radius:3px; border:1px solid #777;"><br>
+                        
+                        <label style="font-size:10px; display:block; margin-bottom:2px;">Никнейм (отображаемое имя):</label>
+                        <input name="dn" style="width:100%; padding:6px; margin-bottom:8px; border-radius:3px; border:1px solid #777;"><br>
+                        
+                        <label style="font-size:10px; display:block; margin-bottom:2px;">Пароль:</label>
+                        <input name="pwd" type="password" required style="width:100%; padding:6px; margin-bottom:12px; border-radius:3px; border:1px solid #777;"><br>
+                        
+                        <input type="submit" name="login" value="ПОДКЛЮЧИТЬСЯ И ВОЙТИ" class="btn" style="width:100%; font-weight:bold; background:#a01ae8;">
+                    </form>
+                    <p style="font-size:9px; color:#777; text-align:center; margin-top:8px;">* Если указанный ID свободен, регистрация произойдет автоматически.</p>
+                </div>
+
+                <div style="text-align:center; font-size:10px; color:#976; margin-top:40px;">&copy; <?php echo date('Y'); ?> Impisre Software</div>
             </div>
         </div>
     <?php else: ?>
@@ -339,14 +380,14 @@ $has_global_new = has_new_messages($myU, 'all', $rDir . 'global.db.php');
         </div>
 
         <div class="nav">
-            <a href="?view=chat&to=all" class="<?php echo ($to=='all')?'active':''; ?>">🌍 Чат <?php echo $has_global_new ? '<span class="unread-dot">●</span>':''; ?></a>
-            <a href="?view=groups" class="<?php echo ($view=='groups')?'active':''; ?>">📢 Группы</a>
-            <a href="?view=contacts" class="<?php echo ($view=='contacts')?'active':''; ?>">📖 Контакты</a>
-            <a href="?view=chat&to=saved" class="<?php echo ($to=='saved_'.$myU || $to=='saved')?'active':''; ?>">⭐ Избр.</a>
-            <a href="?view=mod_store" class="<?php echo ($view=='mod_store')?'active':''; ?>">📦 Моды</a>
-            <a href="?view=info" class="<?php echo ($view=='info')?'active':''; ?>">ℹ️ Инфа</a>
+            <a href="?view=chat&to=all" class="<?php echo ($to=='all')?'active':''; ?>"> Чат <?php echo $has_global_new ? '<span class="unread-dot">●</span>':''; ?></a>
+            <a href="?view=groups" class="<?php echo ($view=='groups')?'active':''; ?>"> Группы</a>
+            <a href="?view=contacts" class="<?php echo ($view=='contacts')?'active':''; ?>">Контакты</a>
+            <a href="?view=chat&to=saved" class="<?php echo ($to=='saved_'.$myU || $to=='saved')?'active':''; ?>">Избр.</a>
+            <a href="?view=mod_store" class="<?php echo ($view=='mod_store')?'active':''; ?>">Моды</a>
+            <a href="?view=info" class="<?php echo ($view=='info')?'active':''; ?>">Инфа</a>
             <?php foreach($myEnabledMods as $m): ?>
-                <a href="?view=run_<?php echo $m; ?>" style="background:#b58900; color:#fff;">🧩 <?php echo substr($m,0,4); ?></a>
+                <a href="?view=run_<?php echo $m; ?>" style="background:#b58900; color:#fff;">модуль <?php echo substr($m,0,4); ?></a>
             <?php endforeach; ?>
         </div>
 
@@ -358,12 +399,12 @@ $has_global_new = has_new_messages($myU, 'all', $rDir . 'global.db.php');
                     </div>
                     <h3> Возможности</h3>
                     <ul>
-                        <li><b>AES-128 Cloud Crypt:</b> шифрование текстов на сервере.</li>
-                        <li><b>Кросс-платформеность:</b> работа на S60v5, на Windows через веб версию и на многих других.</li>
+                        <li><b>AES-128 (from openSSL):</b> шифрование текстов на сервере.</li>
+                        <li><b>Кросс-платформеность:</b> работа на S60v5, Windows Mobile 6.1 на Windows через веб версию и на многих других.</li>
                         <li><b>Мод-система:</b> Прямая кастомизация и расширение логики приложения.</li>
-                        <li><b>Smart Offline & Themes:</b> Умное отслеживание статусов и ночной режим.</li>
+                        <li><b>в сети или нет и темы:</b> статусы,ночной режим.</li>
                     </ul>
-                    <div style="text-align:center; font-size:10px; color:#999; margin-top:30px;">&copy; <?php echo date('Y'); ?> Impisre Software</div>
+                    <div style="text-align:center; font-size:10px; color:#976; margin-top:30px;">&copy; <?php echo date('Y'); ?> Impisre Software</div>
                 </div>
 
             <?php elseif($view == 'chat'): ?>
@@ -398,8 +439,8 @@ $has_global_new = has_new_messages($myU, 'all', $rDir . 'global.db.php');
                                         $rcs = file($rf); $counts = [];
                                         foreach($rcs as $rl) {
                                             if(strpos($rl, '<?php') !== false) continue;
-                                            $rd = explode('|', trim($rl));
-                                            if(isset($rd[2])) $counts[$rd[2]] = ($counts[$rd[2]] ?? 0) + 1;
+                                            $d_r = explode('|', trim($rl));
+                                            if(isset($d_r[2])) $counts[$d_r[2]] = ($counts[$d_r[2]] ?? 0) + 1;
                                         }
                                         foreach($counts as $img => $count) echo "<span class='reac-btn'><img src='smiles/$img' width='12'> $count</span>";
                                     }
@@ -451,7 +492,7 @@ $has_global_new = has_new_messages($myU, 'all', $rDir . 'global.db.php');
                     </form>
                     
                     <hr style="margin:20px 0; opacity:0.2;">
-                    <p>Текущая тема: <b><?php echo ($theme == 'dark') ? 'Тёмная 🌙' : 'Светлая ☀️'; ?></b></p><br>
+                    <p>Текущая тема: <b><?php echo ($theme == 'dark') ? 'Тёмная ' : 'Светлая '; ?></b></p><br>
                     <a href="?toggle_theme=1" class="btn" style="background:#586e75;">Переключить тему оформления</a>
                 </div>
 
@@ -468,7 +509,7 @@ $has_global_new = has_new_messages($myU, 'all', $rDir . 'global.db.php');
                         $has_g_unread = has_new_messages($myU, $g_target, $rDir . $g_target . ".db.php");
                         ?>
                         <div class="mod-card">
-                            <b><?php echo ($g[2]=='channel'?'📢':'👥'); ?> <?php echo $g[1]; ?></b> 
+                            <b><?php echo ($g[2]=='channel'?'канал':'группа'); ?> <?php echo $g[1]; ?></b> 
                             <?php echo $has_g_unread ? '<span style="color:#dc322f; font-size:10px;">(НОВОЕ)</span>':''; ?>
                             <a href="?view=chat&to=<?php echo $g_target; ?>" class="btn" style="float:right;">Войти</a>
                         </div>
@@ -479,7 +520,7 @@ $has_global_new = has_new_messages($myU, 'all', $rDir . 'global.db.php');
                 <div class="main-panel">
                     <h3>Магазин расширений</h3><br>
                     <?php foreach(glob($modDir."*.php") as $f): $fn=basename($f,'.php'); $inst=in_array($fn,$myEnabledMods); ?>
-                        <div class="mod-card">🧩 <?php echo $fn; ?><a href="?toggle_my_mod=<?php echo $fn; ?>" class="btn" style="float:right; background:<?php echo $inst?'#dc322f':'#2aa198';?>"><?php echo $inst?'Удалить':'Ставить';?></a></div>
+                        <div class="mod-card">модуль-<?php echo $fn; ?><a href="?toggle_my_mod=<?php echo $fn; ?>" class="btn" style="float:right; background:<?php echo $inst?'#dc322f':'#2aa198';?>"><?php echo $inst?'Удалить':'Ставить';?></a></div>
                     <?php endforeach; ?>
                 </div>
 
