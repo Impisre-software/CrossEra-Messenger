@@ -60,13 +60,30 @@ function db_append($f, $d) {
 function v_crypt($d, $k, $mode = 'enc') {
     if ($mode == 'enc') {
         $iv = openssl_random_pseudo_bytes(16);
-        $enc = openssl_encrypt($d, "aes-128-ctr", $k, 0, $iv);
-        return "A:" . str_replace(['+','/','='], ['-','_',''], base64_encode($iv . "::" . $enc));
+        $salt = openssl_random_pseudo_bytes(16);
+        $msg_key = hash_hmac('sha256', $salt, $k, true);
+        $msg_key = substr($msg_key, 0, 16); 
+        $enc = openssl_encrypt($d, "aes-128-ctr", $msg_key, 0, $iv);
+        return "B:" . str_replace(['+','/','='], ['-','_',''], base64_encode($iv . "::" . $salt . "::" . $enc));
     } else {
-        if (substr($d, 0, 2) !== "A:") return $d;
+        if (substr($d, 0, 2) !== "A:" && substr($d, 0, 2) !== "B:") return $d;
+        
+        if (substr($d, 0, 2) === "A:") {
+            $raw = base64_decode(str_replace(['-','_'], ['+','/'], substr($d, 2)));
+            $p = explode("::", $raw);
+            return openssl_decrypt($p[1] ?? '', "aes-128-ctr", $k, 0, $p[0] ?? '');
+        }
+        
         $raw = base64_decode(str_replace(['-','_'], ['+','/'], substr($d, 2)));
         $p = explode("::", $raw);
-        return openssl_decrypt($p[1] ?? '', "aes-128-ctr", $k, 0, $p[0] ?? '');
+        
+        $iv = $p[0] ?? '';
+        $salt = $p[1] ?? '';
+        $enc = $p[2] ?? '';
+        
+        $msg_key = hash_hmac('sha256', $salt, $k, true);
+        $msg_key = substr($msg_key, 0, 16);
+        return openssl_decrypt($enc, "aes-128-ctr", $msg_key, 0, $iv);
     }
 }
 
@@ -195,9 +212,18 @@ if(isset($_GET['add_c']) && $myU) {
     header("Location: ?view=contacts"); exit;
 }
 
+// ЗАГРУЗКА АВАТАРОК С ПРОВЕРКОЙ GETIMAGESIZE()
 if(isset($_POST['up_ava']) && $myU){
-    if(!empty($_FILES['ava_file']['tmp_name'])) move_uploaded_file($_FILES['ava_file']['tmp_name'], $avatarDir . md5($myU) . '.png');
-    header("Location: ?view=profile"); exit;
+    if(!empty($_FILES['ava_file']['tmp_name'])) {
+        $check = @getimagesize($_FILES['ava_file']['tmp_name']);
+        if($check !== false) {
+            move_uploaded_file($_FILES['ava_file']['tmp_name'], $avatarDir . md5($myU) . '.png');
+            header("Location: ?view=profile"); exit;
+        } else {
+            $_SESSION['ce_error'] = "Ошибка: Файл не является настоящим изображением!";
+            header("Location: ?view=profile"); exit;
+        }
+    }
 }
 
 if (isset($_POST['create_room']) && $myU) {
@@ -236,25 +262,50 @@ if(isset($_POST['login'])){
             if(!$exists) db_append($passF, "$u|".password_hash($p, PASSWORD_DEFAULT)."|$n");
             $_SESSION['ce_uid'] = $u; $_SESSION['ce_nick'] = $n;
             header("Location: index.php"); exit;
+        } else {
+            $_SESSION['ce_error'] = "Неверный пароль для этого ID!";
         }
     }
 }
 
 if(isset($_GET['logout'])){ session_destroy(); header("Location: index.php"); exit; }
 
+// ОТПРАВКА СООБЩЕНИЙ С КОМБИНИРОВАННОЙ ПРОВЕРКОЙ КАРТИНОК
 if($myU && isset($_POST['send_msg'])){
     $m = $_POST['msg'] ?? ''; $fT = "";
+    $isValidFile = true;
+
     if(!empty($_FILES['f']['name'])){
         $ext = strtolower(pathinfo($_FILES['f']['name'], PATHINFO_EXTENSION));
-        $nf = bin2hex(openssl_random_pseudo_bytes(5)).'.'.$ext;
-        if(move_uploaded_file($_FILES['f']['tmp_name'], $up.$nf))
-            $fT = in_array($ext, ['jpg','png','gif','jpeg']) ? "[img]".$up.$nf."[/img]" : "[file]".$up.$nf."[/file]";
+        $isImageExt = in_array($ext, ['jpg','png','gif','jpeg']);
+        
+        if($isImageExt) {
+            $check = @getimagesize($_FILES['f']['tmp_name']);
+            if($check === false) {
+                $isValidFile = false;
+                $_SESSION['ce_error'] = "Атака заблокирована: Файл маскируется под картинку!";
+            }
+        }
+
+        if($isValidFile) {
+            $nf = bin2hex(openssl_random_pseudo_bytes(5)).'.'.$ext;
+            if(move_uploaded_file($_FILES['f']['tmp_name'], $up.$nf)) {
+                $fT = $isImageExt ? "[img]".$up.$nf."[/img]" : "[file]".$up.$nf."[/file]";
+            }
+        }
     }
-    if($m || $fT) db_append($curF, "$myN|".v_crypt($m.($m&&$fT?" ":"").$fT, $crypto_key)."|".date('H:i')."|$myU");
+    
+    if(($m || $fT) && $isValidFile) {
+        db_append($curF, "$myN|".v_crypt($m.($m&&$fT?" ":"").$fT, $crypto_key)."|".date('H:i')."|$myU");
+    }
     header("Location: ?view=$view&to=$to"); exit;
 }
  
 $has_global_new = has_new_messages($myU, 'all', $rDir . 'global.db.php');
+
+// Вытаскиваем ошибку из сессии, если она там есть
+$sys_error = $_SESSION['ce_error'] ?? '';
+unset($_SESSION['ce_error']);
 ?>
 <!DOCTYPE html>
 <html>
@@ -298,6 +349,7 @@ $has_global_new = has_new_messages($myU, 'all', $rDir . 'global.db.php');
         .reac-menu { display:none; position:absolute; background:white; border:1px solid #333; padding:5px; z-index:10; border-radius:5px; bottom:20px; }
         body.theme-dark .reac-menu { background:#222; border-color:#555; }
         .del-link { color:#dc322f; text-decoration:none; margin-left:8px; font-size:10px; font-weight:bold; }
+        .err-msg { background:#dc322f; color:white; padding:8px; margin-bottom:10px; border-radius:3px; text-align:center; font-weight:bold; }
     </style>
 </head>
 <body class="theme-<?php echo $theme; ?>">
@@ -327,6 +379,10 @@ $has_global_new = has_new_messages($myU, 'all', $rDir . 'global.db.php');
                     Impisre Software представляет: кросс-платформенный защищённый мессенджер CrossEra.
                 </div>
 
+                <?php if($sys_error): ?>
+                    <div class="err-msg"><?php echo $sys_error; ?></div>
+                <?php endif; ?>
+
                 <h3>Возможности системы:</h3><br>
 
                 <div class="mod-card">
@@ -340,12 +396,12 @@ $has_global_new = has_new_messages($myU, 'all', $rDir . 'global.db.php');
                 </div>
 
                 <div class="mod-card">
-                    <b> Мод-система</b>
+                    <b>Мод-система</b>
                     <p style="font-size:11px; opacity:0.8; margin-top:4px;">Прямая динамическая кастомизация. Возможность подключать и расширять исполняемую логику приложения через персональный репозиторий модулей.</p>
                 </div>
 
                 <div class="mod-card">
-                    <b> Темы оформления и Статусы</b>
+                    <b>Темы оформления и Статусы</b>
                     <p style="font-size:11px; opacity:0.8; margin-top:4px;">Индикация нахождения пользователей в сети в реальном времени, а также поддержка легкого и ночного режимов для снижения нагрузки на глаза.</p>
                 </div>
 
@@ -400,14 +456,18 @@ $has_global_new = has_new_messages($myU, 'all', $rDir . 'global.db.php');
                     <h3> Возможности</h3>
                     <ul>
                         <li><b>AES-128 (from openSSL):</b> шифрование текстов на сервере.</li>
-                        <li><b>Кросс-платформеность:</b> работа на S60v5, Windows Mobile 6.1 на Windows через веб версию и на многих других.</li>
+                        <li><b>Кросс-платформеность:</b> работа на S60v5, Windows Mobile 6.1, на ПК и десктопах.</li>
                         <li><b>Мод-система:</b> Прямая кастомизация и расширение логики приложения.</li>
-                        <li><b>в сети или нет и темы:</b> статусы,ночной режим.</li>
+                        <li><b>Статусы и Темы:</b> трекинг онлайна и ночной режим.</li>
                     </ul>
                     <div style="text-align:center; font-size:10px; color:#976; margin-top:30px;">&copy; <?php echo date('Y'); ?> Impisre Software</div>
                 </div>
 
             <?php elseif($view == 'chat'): ?>
+                <?php if($sys_error): ?>
+                    <div class="err-msg" style="margin: 5px;"><?php echo $sys_error; ?></div>
+                <?php endif; ?>
+
                 <div id="chat">
                     <?php if(file_exists($curF)) {
                         $lines = file($curF);
@@ -483,6 +543,11 @@ $has_global_new = has_new_messages($myU, 'all', $rDir . 'global.db.php');
             <?php elseif($view == 'profile'): ?>
                 <div class="main-panel" style="text-align:center;">
                     <h3>Настройки профиля</h3><br>
+                    
+                    <?php if($sys_error): ?>
+                        <div class="err-msg"><?php echo $sys_error; ?></div>
+                    <?php endif; ?>
+
                     <?php echo get_avatar_html($myU, $myN); ?><br><br><b><?php echo $myN; ?></b><hr style="margin:15px 0; opacity:0.2;">
                     
                     <form method="POST" enctype="multipart/form-data">
@@ -529,11 +594,14 @@ $has_global_new = has_new_messages($myU, 'all', $rDir . 'global.db.php');
                     <?php 
                     $mName = str_replace('run_', '', $view); 
                     $mName = preg_replace('/[^a-zA-Z0-9_]/', '', $mName);
-                    if(!empty($mName) && file_exists($modDir.$mName.".php")){ 
+                    // Проверяем, куплен/разрешен ли модуль текущему пользователю или это админ
+                    if(!empty($mName) && file_exists($modDir.$mName.".php") && (in_array($mName, $myEnabledMods) || $myU == $adminID)){ 
                         include_once($modDir.$mName.".php"); 
                         $f = "mod_".$mName."_main"; 
                         if(function_exists($f)) $f($myU, $adminID); 
-                    } 
+                    } else {
+                        echo "<b style='color:red;'>Доступ к модулю заблокирован. Активируйте его в магазине!</b>";
+                    }
                     ?>
                 </div>
             <?php endif; ?>
