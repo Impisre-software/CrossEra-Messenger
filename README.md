@@ -47,7 +47,9 @@ function mod_weather_main($user, $admin) {
     if(isset($_POST['city'])) echo "Температура: +22°C";
     echo "</div>";
 }
-```php
+
+
+
 
 Быстрый старт
 Установка на свой сервер
