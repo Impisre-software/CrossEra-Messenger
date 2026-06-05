@@ -7,10 +7,10 @@ $rDir = 'rooms/';
 $up = 'uploads/';
 $avatarDir = 'avatars/';
 $modDir = 'mods/';           
-$modQueueDir = 'mods_queue/'; 
 $reacDir = 'reacs/';  
+$viewsDir = 'views_counter/';
 
-foreach([$rDir, $up, $avatarDir, $modDir, $modQueueDir, $reacDir] as $dir) {
+foreach([$rDir, $up, $avatarDir, $modDir, $reacDir, $viewsDir] as $dir) {
     if(!is_dir($dir)) @mkdir($dir, 0777);
 }
 
@@ -24,36 +24,37 @@ $passF = $rDir . 'users_pass.db.php';
 $groupsF = $rDir . 'groups_list.db.php';
 $onlineF = $rDir . 'online.db.php';
 $unreadF = $rDir . 'unread_tracker.db.php';
+$reqF = $rDir . 'contact_requests.db.php';
 
 $myU = $_SESSION['ce_uid'] ?? '';
 $myN = $_SESSION['ce_nick'] ?? '';
-
-if($myU && !$myN) $myN = $myU;
-
-$myContactsF = $rDir . "contacts_" . $myU . ".db.php";
-$userModsFile = $rDir . "mods_user_" . $myU . ".db.php";
 
 $theme = $_COOKIE['ce_theme'] ?? 'light';
 if(isset($_GET['toggle_theme']) && $myU) {
     $theme = ($theme == 'dark') ? 'light' : 'dark';
     setcookie('ce_theme', $theme, time() + (86400 * 30), "/");
-    header("Location: " . $_SERVER['HTTP_REFERER']); exit;
+    header("Location: " . ($_SERVER['HTTP_REFERER'] ?? 'index.php')); exit;
 }
 
+// Запись онлайна
 if($myU) {
     $onlines = file_exists($onlineF) ? file($onlineF) : [];
     $newOnlines = ["<?php die(); ?>\n"];
     foreach($onlines as $ol) {
         if(strpos($ol, '<?php') !== false || !trim($ol)) continue;
         $od = explode('|', trim($ol));
-        if(($od[0] ?? '') != $myU && ($od[1] ?? 0) > (time() - 300)) $newOnlines[] = trim($ol) . "\n";
+        if(($od[0] ?? '') != $myU && ($od[1] ?? 0) > (time() - 300)) {
+            $newOnlines[] = rtrim(trim($ol), "\r\n") . "\n";
+        }
     }
     $newOnlines[] = "$myU|" . time() . "\n";
     file_put_contents($onlineF, implode("", $newOnlines), LOCK_EX);
 }
 
+// Функции безопасной работы с БД
 function db_append($f, $d) {
     if(!file_exists($f)) file_put_contents($f, "<?php die(); ?>\n");
+    $d = str_replace(["\r", "\n"], " ", $d);
     return file_put_contents($f, $d . "\n", FILE_APPEND | LOCK_EX);
 }
 
@@ -61,28 +62,15 @@ function v_crypt($d, $k, $mode = 'enc') {
     if ($mode == 'enc') {
         $iv = openssl_random_pseudo_bytes(16);
         $salt = openssl_random_pseudo_bytes(16);
-        $msg_key = hash_hmac('sha256', $salt, $k, true);
-        $msg_key = substr($msg_key, 0, 16); 
+        $msg_key = substr(hash_hmac('sha256', $salt, $k, true), 0, 16); 
         $enc = openssl_encrypt($d, "aes-128-ctr", $msg_key, 0, $iv);
         return "B:" . str_replace(['+','/','='], ['-','_',''], base64_encode($iv . "::" . $salt . "::" . $enc));
     } else {
-        if (substr($d, 0, 2) !== "A:" && substr($d, 0, 2) !== "B:") return $d;
-        
-        if (substr($d, 0, 2) === "A:") {
-            $raw = base64_decode(str_replace(['-','_'], ['+','/'], substr($d, 2)));
-            $p = explode("::", $raw);
-            return openssl_decrypt($p[1] ?? '', "aes-128-ctr", $k, 0, $p[0] ?? '');
-        }
-        
+        if (substr($d, 0, 2) !== "B:") return $d;
         $raw = base64_decode(str_replace(['-','_'], ['+','/'], substr($d, 2)));
         $p = explode("::", $raw);
-        
-        $iv = $p[0] ?? '';
-        $salt = $p[1] ?? '';
-        $enc = $p[2] ?? '';
-        
-        $msg_key = hash_hmac('sha256', $salt, $k, true);
-        $msg_key = substr($msg_key, 0, 16);
+        $iv = $p[0] ?? ''; $salt = $p[1] ?? ''; $enc = $p[2] ?? '';
+        $msg_key = substr(hash_hmac('sha256', $salt, $k, true), 0, 16);
         return openssl_decrypt($enc, "aes-128-ctr", $msg_key, 0, $iv);
     }
 }
@@ -120,13 +108,14 @@ function parse_msg($m) {
     $m = htmlspecialchars($m);
     $smiles = [
         ':heart:' => 'heart.gif', ':hi:' => 'hi.gif', ':sarcasm:' => 'sarcasm.gif',
-        ':cool:' => 'good.gif', ':smile:' => 'smile.gif', ':fire:' => 'fire.gif', ':laugh:' => 'smech.gif'
+        ':cool:' => 'good.gif', ':smile:' => 'smile.gif', ':fire:' => 'fire.gif',
+        '(ツ)' => 'smile.gif', '¯\_(ツ)_/¯' => 'smile.gif'
     ];
     foreach($smiles as $code => $img) {
         $m = str_replace($code, "<img src='smiles/$img' width='18' height='18' style='vertical-align:middle;' title='$code'>", $m);
     }
-    $m = preg_replace('/\[img\](.*?)\[\/img\]/', '<br><img src="$1" style="max-width:100%; border-radius:5px; margin-top:5px;">', $m);
-    $m = preg_replace('/\[file\](.*?)\[\/file\]/', '<br><a href="$1" style="display:inline-block; background:#eee; padding:4px; border:1px solid #777; text-decoration:none; color:#333; font-size:10px;">📁 Файл</a>', $m);
+    $m = preg_replace('/\[img\](uploads\/[a-z0-9]+\.(?:png|jpg|jpeg|gif))\[\/img\]/i', '<br><img src="$1" style="max-width:100%; border-radius:5px; margin-top:5px;">', $m);
+    $m = preg_replace('/\[file\](uploads\/[a-z0-9]+\.[a-z0-9]+)\[\/file\]/i', '<br><a href="$1" style="display:inline-block; background:#eee; padding:4px; border:1px solid #777; text-decoration:none; color:#333; font-size:10px;">📁 Файл</a>', $m);
     return nl2br($m);
 }
 
@@ -146,7 +135,7 @@ function set_last_view_time($u, $target) {
     foreach($lines as $l) {
         if(strpos($l, '<?php') !== false || !trim($l)) continue;
         $d = explode('|', trim($l));
-        if(($d[0] ?? '') != $u || ($d[1] ?? '') != $target) $newLines[] = trim($l) . "\n";
+        if(($d[0] ?? '') != $u || ($d[1] ?? '') != $target) $newLines[] = rtrim(trim($l), "\r\n") . "\n";
     }
     $newLines[] = "$u|$target|" . time() . "\n";
     file_put_contents($unreadF, implode("", $newLines), LOCK_EX);
@@ -155,26 +144,43 @@ function set_last_view_time($u, $target) {
 function has_new_messages($u, $target, $file_path) {
     if(!file_exists($file_path)) return false;
     $last_view = get_last_view_time($u, $target);
+    if(filemtime($file_path) <= $last_view) return false;
     $lines = file($file_path);
     foreach($lines as $l) {
         if(strpos($l, '<?php') !== false || !trim($l)) continue;
         $d = explode('|', trim($l));
-        if(($d[3] ?? '') != $u && filemtime($file_path) > $last_view) return true;
+        if(($d[3] ?? '') != $u) return true;
     }
     return false;
 }
 
+// Роутинг и входящие параметры
 $to = preg_replace('/[^a-z0-9_]/', '', $_REQUEST['to'] ?? 'all');
-if($to == 'saved') $to = "saved_" . $myU;
+if($to == 'saved' && $myU) $to = "saved_" . $myU;
 
-$curF = $rDir . (strpos($to, 'pm_') === 0 || strpos($to, 'saved_') === 0 || strpos($to, 'group_') === 0 ? "$to.db.php" : "room_$to.db.php");
+$view = preg_replace('/[^a-z0-9_]/', '', $_GET['view'] ?? 'chat');
+
+$curF = $rDir . (strpos($to, 'pm_') === 0 || strpos($to, 'saved_') === 0 || strpos($to, 'group_') === 0 || strpos($to, 'gb_') === 0 ? "$to.db.php" : "room_$to.db.php");
 if($to == 'all') $curF = $rDir . "global.db.php";
 
-$view = $_GET['view'] ?? 'chat';
 if($myU && $view == 'chat') { set_last_view_time($myU, $to); }
 
+// ФУНКЦИЯ ЭКСПОРТА В ТЕКСТ (TXT)
+if(isset($_GET['export_txt']) && $myU && file_exists($curF)) {
+    header('Content-Type: text/plain; charset=utf-8');
+    header('Content-Disposition: attachment; filename="history_'.$to.'_'.date('Y-m-d').'.txt"');
+    foreach(file($curF) as $l) {
+        if(strpos($l, '<?php') !== false || !trim($l)) continue;
+        $d = explode('|', trim($l));
+        $plain = v_crypt($d[1], $crypto_key, 'dec');
+        echo "[{$d[2]}] {$d[0]}: " . strip_tags(str_replace(['[img]','[/img]','[file]','[/file]'], ' ', $plain)) . "\r\n";
+    }
+    exit;
+}
+
+// УДАЛЕНИЕ СООБЩЕНИЯ
 if(isset($_GET['del_msg']) && $myU) {
-    $target_mid = $_GET['del_msg'];
+    $target_mid = preg_replace('/[^a-z0-9]/', '', $_GET['del_msg']);
     if(file_exists($curF)) {
         $lines = file($curF); $newLines = [];
         foreach($lines as $l) {
@@ -182,7 +188,7 @@ if(isset($_GET['del_msg']) && $myU) {
             if(md5(trim($l)) == $target_mid) {
                 $d = explode('|', trim($l));
                 if(($d[3] ?? '') == $myU || $myU == $adminID) {
-                    $newLines[] = "{$d[0]}|" . v_crypt("[Сообщение удалено]", $crypto_key) . "|{$d[2]}|{$d[3]}\n";
+                    $newLines[] = "{$d[0]}|" . v_crypt("[Сообщение удалено]", $crypto_key) . "|{$d[2]}|{$d[3]}|1\n";
                     continue;
                 }
             }
@@ -193,6 +199,29 @@ if(isset($_GET['del_msg']) && $myU) {
     header("Location: ?view=chat&to=$to"); exit;
 }
 
+// РЕДАКТИРОВАНИЕ СООБЩЕНИЯ
+if(isset($_POST['edit_msg']) && $myU) {
+    $target_mid = preg_replace('/[^a-z0-9]/', '', $_POST['mid']);
+    $new_text = $_POST['new_text'] ?? '';
+    if(file_exists($curF) && $new_text) {
+        $lines = file($curF); $newLines = [];
+        foreach($lines as $l) {
+            if(strpos($l, '<?php') !== false) { $newLines[] = $l; continue; }
+            if(md5(trim($l)) == $target_mid) {
+                $d = explode('|', trim($l));
+                if(($d[3] ?? '') == $myU) {
+                    $newLines[] = "{$d[0]}|" . v_crypt($new_text, $crypto_key) . "|{$d[2]}|{$d[3]}|1\n";
+                    continue;
+                }
+            }
+            $newLines[] = $l;
+        }
+        file_put_contents($curF, implode("", $newLines), LOCK_EX);
+    }
+    header("Location: ?view=chat&to=$to"); exit;
+}
+
+// РЕАКЦИИ
 if(isset($_GET['add_reac']) && $myU) {
     $mid = preg_replace('/[^a-z0-9]/', '', $_GET['mid']); 
     $type = preg_replace('/[^a-z0-9\.]/', '', $_GET['type']); 
@@ -202,60 +231,95 @@ if(isset($_GET['add_reac']) && $myU) {
         foreach(file($rf) as $line) { if(strpos($line, "$myU|$type") !== false) $already = true; }
     }
     if(!$already) db_append($rf, "$myU|$myN|$type");
-    header("Location: " . $_SERVER['HTTP_REFERER']); exit;
+    header("Location: " . ($_SERVER['HTTP_REFERER'] ?? 'index.php')); exit;
 }
 
+// ОТПРАВКА ЗАЯВКИ В КОНТАКТЫ
 if(isset($_GET['add_c']) && $myU) {
     $cid = preg_replace('/[^a-z0-9]/', '', $_GET['add_c']);
-    $cn = htmlspecialchars($_GET['n']);
-    if($cid != $myU) db_append($myContactsF, "$cid|$cn");
-    header("Location: ?view=contacts"); exit;
-}
-
-// ЗАГРУЗКА АВАТАРОК С ПРОВЕРКОЙ GETIMAGESIZE()
-if(isset($_POST['up_ava']) && $myU){
-    if(!empty($_FILES['ava_file']['tmp_name'])) {
-        $check = @getimagesize($_FILES['ava_file']['tmp_name']);
-        if($check !== false) {
-            move_uploaded_file($_FILES['ava_file']['tmp_name'], $avatarDir . md5($myU) . '.png');
-            header("Location: ?view=profile"); exit;
-        } else {
-            $_SESSION['ce_error'] = "Ошибка: Файл не является настоящим изображением!";
-            header("Location: ?view=profile"); exit;
+    if($cid != $myU) {
+        $already = false;
+        if(file_exists($reqF)) {
+            foreach(file($reqF) as $l) {
+                if(strpos($l, '<?php') !== false) continue;
+                $d = explode('|', trim($l));
+                if(($d[0]??'') == $myU && ($d[1]??'') == $cid) { $already = true; break; }
+            }
+        }
+        if(!$already) {
+            db_append($reqF, "$myU|$cid|$myN");
         }
     }
+    header("Location: ?view=profile&uid=" . $cid); exit;
 }
 
+// ОБРАБОТКА ЗАЯВОК: ПРИНЯТЬ ИЛИ ОТКЛОНИТЬ
+if(isset($_GET['req_action']) && $myU) {
+    $from_uid = preg_replace('/[^a-z0-9]/', '', $_GET['from_uid']);
+    $action = $_GET['req_action'];
+    if(file_exists($reqF)) {
+        $lines = file($reqF); $newLines = ["<?php die(); ?>\n"];
+        $sender_name = $from_uid;
+        foreach($lines as $l) {
+            if(strpos($l, '<?php') !== false || !trim($l)) continue;
+            $d = explode('|', trim($l));
+            if(($d[0]??'') == $from_uid && ($d[1]??'') == $myU) {
+                if(isset($d[2])) $sender_name = trim($d[2]);
+                continue; 
+            }
+            $newLines[] = rtrim(trim($l), "\r\n") . "\n";
+        }
+        file_put_contents($reqF, implode("", $newLines), LOCK_EX);
+        
+        if($action == 'accept') {
+            db_append($rDir . "contacts_" . $myU . ".db.php", "$from_uid|$sender_name");
+            db_append($rDir . "contacts_" . $from_uid . ".db.php", "$myU|$myN");
+        }
+    }
+    header("Location: ?view=digest"); exit;
+}
+
+// СМЕНА АВАТАРА И ОПИСАНИЯ ПРОФИЛЯ
+if(isset($_POST['up_profile']) && $myU){
+    if(!empty($_FILES['ava_file']['tmp_name'])) {
+        $check = @getimagesize($_FILES['ava_file']['tmp_name']);
+        $ext = strtolower(pathinfo($_FILES['ava_file']['name'], PATHINFO_EXTENSION));
+        if($check !== false && in_array($ext, ['png', 'jpg', 'jpeg', 'gif'])) {
+            move_uploaded_file($_FILES['ava_file']['tmp_name'], $avatarDir . md5($myU) . '.png');
+        }
+    }
+    if(isset($_POST['about'])) {
+        $about_safe = str_replace(["\r", "\n", "|"], " ", htmlspecialchars($_POST['about']));
+        file_put_contents($avatarDir . md5($myU) . '.txt', $about_safe);
+    }
+    header("Location: ?view=profile"); exit;
+}
+
+// СОЗДАНИЕ ГРУППЫ / КАНАЛА
 if (isset($_POST['create_room']) && $myU) {
-    $name = htmlspecialchars($_POST['r_name']); $type = $_POST['r_type']; 
+    $name = str_replace('|', '-', htmlspecialchars($_POST['r_name']));
+    $type = ($_POST['r_type'] == 'channel') ? 'channel' : 'group'; 
     $id = bin2hex(openssl_random_pseudo_bytes(4));
     db_append($groupsF, "$id|$name|$type|$myU");
     header("Location: ?view=groups"); exit;
 }
 
-$myEnabledMods = [];
-if($myU && file_exists($userModsFile)) {
-    foreach(file($userModsFile) as $l) { if(strpos($l, '<?php') === false && trim($l)) $myEnabledMods[] = trim($l); }
-}
-
-if(isset($_GET['toggle_my_mod']) && $myU) {
-    $m = basename($_GET['toggle_my_mod']);
-    $m = preg_replace('/[^a-zA-Z0-9_]/', '', $m);
-    if(in_array($m, $myEnabledMods)) $myEnabledMods = array_diff($myEnabledMods, [$m]);
-    else if(file_exists($modDir . $m . ".php")) $myEnabledMods[] = $m;
-    file_put_contents($userModsFile, "<?php die(); ?>\n" . implode("\n", array_unique($myEnabledMods)));
-    header("Location: ?view=mod_store"); exit;
-}
-
+// АВТОРИЗАЦИЯ И РЕГИСТРАЦИЯ
 if(isset($_POST['login'])){
     $u = strtolower(preg_replace('/[^a-z0-9]/', '', $_POST['u_id']));
-    $p = $_POST['pwd'] ?? ''; $n = htmlspecialchars($_POST['dn'] ?? $u);
+    $p = $_POST['pwd'] ?? ''; 
+    $n = str_replace(['|', '?', '<', '>'], '', htmlspecialchars($_POST['dn'] ?? $u));
     if($u && $p){
         $exists = false; $auth = false;
         if(file_exists($passF)) {
             foreach(file($passF) as $l) {
+                if(strpos($l, '<?php') !== false) continue;
                 $d = explode('|', trim($l));
-                if(($d[0] ?? '') == $u) { $exists = true; if(password_verify($p, $d[1])) $auth = true; break; }
+                if(($d[0] ?? '') == $u) { 
+                    $exists = true; 
+                    if(password_verify($p, $d[1])) { $auth = true; $n = $d[2] ?? $u; }
+                    break; 
+                }
             }
         }
         if($auth || !$exists) {
@@ -263,235 +327,412 @@ if(isset($_POST['login'])){
             $_SESSION['ce_uid'] = $u; $_SESSION['ce_nick'] = $n;
             header("Location: index.php"); exit;
         } else {
-            $_SESSION['ce_error'] = "Неверный пароль для этого ID!";
+            $_SESSION['ce_error'] = "Неверный пароль!";
         }
     }
 }
 
 if(isset($_GET['logout'])){ session_destroy(); header("Location: index.php"); exit; }
 
-// ОТПРАВКА СООБЩЕНИЙ С КОМБИНИРОВАННОЙ ПРОВЕРКОЙ КАРТИНОК
+// ОТПРАВКА СООБЩЕНИЙ
 if($myU && isset($_POST['send_msg'])){
-    $m = $_POST['msg'] ?? ''; $fT = "";
-    $isValidFile = true;
-
+    $m = $_POST['msg'] ?? ''; $fT = ""; $isValidFile = true;
     if(!empty($_FILES['f']['name'])){
         $ext = strtolower(pathinfo($_FILES['f']['name'], PATHINFO_EXTENSION));
+        $allowedExtensions = ['jpg','png','gif','jpeg','zip','rar','txt','amr','mp3'];
         $isImageExt = in_array($ext, ['jpg','png','gif','jpeg']);
-        
-        if($isImageExt) {
-            $check = @getimagesize($_FILES['f']['tmp_name']);
-            if($check === false) {
-                $isValidFile = false;
-                $_SESSION['ce_error'] = "Атака заблокирована: Файл маскируется под картинку!";
-            }
+        if(!in_array($ext, $allowedExtensions)) $isValidFile = false;
+        if($isImageExt && $isValidFile) {
+            if(@getimagesize($_FILES['f']['tmp_name']) === false) $isValidFile = false;
         }
-
         if($isValidFile) {
-            $nf = bin2hex(openssl_random_pseudo_bytes(5)).'.'.$ext;
+            $nf = bin2hex(openssl_random_pseudo_bytes(8)).'.'.$ext;
             if(move_uploaded_file($_FILES['f']['tmp_name'], $up.$nf)) {
                 $fT = $isImageExt ? "[img]".$up.$nf."[/img]" : "[file]".$up.$nf."[/file]";
             }
         }
     }
-    
     if(($m || $fT) && $isValidFile) {
-        db_append($curF, "$myN|".v_crypt($m.($m&&$fT?" ":"").$fT, $crypto_key)."|".date('H:i')."|$myU");
+        $safeMyN = str_replace(['|', "\n", "\r"], '', $myN);
+        db_append($curF, "$safeMyN|".v_crypt($m.($m&&$fT?" ":"").$fT, $crypto_key)."|".date('H:i')."|$myU|0");
     }
     header("Location: ?view=$view&to=$to"); exit;
 }
- 
-$has_global_new = has_new_messages($myU, 'all', $rDir . 'global.db.php');
-
-// Вытаскиваем ошибку из сессии, если она там есть
-$sys_error = $_SESSION['ce_error'] ?? '';
-unset($_SESSION['ce_error']);
 ?>
 <!DOCTYPE html>
 <html>
 <head>
-    <link rel="icon" type="image/png" href="favicon.png">   
     <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CrossEra Hybrid</title>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
-        html, body { height:100%; width:100%; overflow:hidden; }
-        
-        body.theme-light { background:#000; color:#839496; }
+        body.theme-light { background:#fdf6e3; color:#657b83; }
         body.theme-light .box { background:#eee8d5; color:#073642; }
-        body.theme-light #chat, body.theme-light .main-panel { background:#fff; color:#333; }
-        body.theme-light .m { border-bottom:1px solid #eee; }
-        body.theme-light .mod-card { background:#fff; border:1px solid #ccc; }
+        body.theme-light #chat, body.theme-light .main-panel { background:#fdf6e3; color:#586e75; }
+        body.theme-light .m { border-bottom:1px solid #eae1c8; }
+        body.theme-light .mod-card { background:#eee8d5; border:1px solid #d3cbb7; color:#073642; }
         
-        body.theme-dark { background:#111; color:#eee; }
-        body.theme-dark .box { background:#1e1e1e; color:#ddd; }
-        body.theme-dark #chat, body.theme-dark .main-panel { background:#121212; color:#fff; }
-        body.theme-dark .m { border-bottom:1px solid #222; }
-        body.theme-dark .mod-card { background:#1a1a1a; border:1px solid #333; }
-        body.theme-dark textarea { background:#252525; color:#fff; border:1px solid #444; }
-
+        body.theme-dark { background:#073642; color:#93a1a1; }
+        body.theme-dark .box { background:#002b36; color:#93a1a1; }
+        body.theme-dark #chat, body.theme-dark .main-panel { background:#002b36; color:#839496; }
+        body.theme-dark .m { border-bottom:1px solid #073642; }
+        body.theme-dark .mod-card { background:#073642; border:1px solid #586e75; color:#93a1a1; }
+        body.theme-dark textarea, body.theme-dark input[type="text"] { background:#073642; color:#eee; border:1px solid #586e75; }
+        
         body { font-family:sans-serif; font-size:12px; }
-        .box { height:100%; width:100%; display:flex; flex-direction:column; overflow:hidden; }
+        html, body, .box { height:100%; width:100%; }
+        .box { display:flex; flex-direction:column; overflow:hidden; }
         .hdr { background:#a01ae8; color:white; padding:10px; font-weight:bold; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
         .nav { background:#93a1a1; padding:5px; display:flex; flex-wrap:wrap; gap:3px; border-bottom:1px solid #586e75; flex-shrink:0; }
-        body.theme-dark .nav { background:#2d2d2d; border-bottom:1px solid #444; }
+        body.theme-dark .nav { background:#073642; border-bottom:1px solid #586e75; }
         .nav a { background:#eee; color:#000; text-decoration:none; padding:4px 8px; font-size:10px; border:1px solid #666; border-radius:3px; }
         .nav a.active { background:#2aa198; color:white; }
-        .nav .unread-dot { color:#dc322f; font-weight:bold; font-size:9px; }
         .content { flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0; }
         #chat, .main-panel { flex:1; overflow-y:auto; padding:10px; }
         .m { padding:8px 0; position:relative; }
-        .btn { background:#2aa198; color:white; border:none; padding:6px 12px; cursor:pointer; text-decoration:none; font-size:11px; border-radius:3px; display:inline-block; }
-        .mod-card { padding:10px; margin-bottom:8px; border-radius:5px; }
+        .btn { background:#2aa198; color:white; border:none; padding:4px 10px; cursor:pointer; text-decoration:none; font-size:11px; border-radius:3px; display:inline-block; }
+        .mod-card { padding:10px; margin-bottom:8px; border-radius:5px; position:relative; }
         .reac-bar { margin-left:29px; margin-top:4px; display:flex; gap:3px; align-items:center; }
         .reac-btn { background:#f0f0f0; border:1px solid #ccc; border-radius:10px; padding:1px 4px; font-size:9px; text-decoration:none; color:#333; }
         body.theme-dark .reac-btn { background:#2a2a2a; border:1px solid #444; color:#ccc; }
         .reac-menu { display:none; position:absolute; background:white; border:1px solid #333; padding:5px; z-index:10; border-radius:5px; bottom:20px; }
         body.theme-dark .reac-menu { background:#222; border-color:#555; }
-        .del-link { color:#dc322f; text-decoration:none; margin-left:8px; font-size:10px; font-weight:bold; }
-        .err-msg { background:#dc322f; color:white; padding:8px; margin-bottom:10px; border-radius:3px; text-align:center; font-weight:bold; }
+        .err-msg { background:#dc322f; color:white; padding:8px; margin-bottom:10px; text-align:center; font-weight:bold; }
+        .fast-reply { background:#eee; border:1px solid #ccc; padding:2px 5px; font-size:10px; text-decoration:none; color:#000; border-radius:3px; }
+        body.theme-dark .fast-reply { background:#333; border-color:#555; color:#fff; }
     </style>
 </head>
 <body class="theme-<?php echo $theme; ?>">
 <div class="box">
     <?php if(!$myU): ?>
-        <div class="hdr">
-            <div style="display:flex; align-items:center;">
-                <div style="width:24px; height:24px; border-radius:50%; background:#586e75; color:white; text-align:center; line-height:24px; font-size:10px;">G</div>
-                <span style="margin-left:5px; color:white;">Гость (Вход в систему)</span>
-            </div>
-            <span style="font-size:10px; opacity:0.8;">CrossEra v1.0 Hybrid</span>
-        </div>
-
-        <div class="nav">
-            <a href="#" class="active">Главная / Инфо</a>
-            <a href="#auth-section">Авторизация</a>
-        </div>
-
-        <div class="content" style="overflow-y:auto;">
-            <div class="main-panel" style="line-height:1.6;">
-                
-                <div style="text-align:center; margin-bottom:15px; background:#fff; padding:10px; border-radius:5px; border:1px solid rgba(0,0,0,0.1);">
-                    <img src="кросс-платформеность.png" alt="CrossEra на девайсах" style="max-width:100%; height:auto; border-radius:3px;">
-                </div>
-
-                <div style="background:#a01ae8; color:white; padding:10px; margin-bottom:15px; font-size:11px; border-radius:3px; text-align:center; font-weight:bold;">
-                    Impisre Software представляет: кросс-платформенный защищённый мессенджер CrossEra.
-                </div>
-
-                <?php if($sys_error): ?>
-                    <div class="err-msg"><?php echo $sys_error; ?></div>
-                <?php endif; ?>
-
-                <h3>Возможности системы:</h3><br>
-
-                <div class="mod-card">
-                    <b>Защита AES-128 шифрованием</b>
-                    <p style="font-size:11px; opacity:0.8; margin-top:4px;">Шифрование текстовых пакетов на сервере. Ваши файлы баз данных защищены от прямого чтения злоумышленниками.</p>
-                </div>
-
-                <div class="mod-card">
-                    <b>Кросс-платформенность</b>
-                    <p style="font-size:11px; opacity:0.8; margin-top:4px;">Полноценная работа на ретро-смартфонах (Symbian S60v5, Windows Mobile 6.x), КПК, старых ПК под Windows и любых современных смартфонах.</p>
-                </div>
-
-                <div class="mod-card">
-                    <b>Мод-система</b>
-                    <p style="font-size:11px; opacity:0.8; margin-top:4px;">Прямая динамическая кастомизация. Возможность подключать и расширять исполняемую логику приложения через персональный репозиторий модулей.</p>
-                </div>
-
-                <div class="mod-card">
-                    <b>Темы оформления и Статусы</b>
-                    <p style="font-size:11px; opacity:0.8; margin-top:4px;">Индикация нахождения пользователей в сети в реальном времени, а также поддержка легкого и ночного режимов для снижения нагрузки на глаза.</p>
-                </div>
-
-                <hr style="margin:20px 0; opacity:0.2;">
-                <h3 id="auth-section" style="text-align:center;">Вход / Быстрая регистрация</h3><br>
-                
-                <div class="mod-card" style="max-width:320px; margin:0 auto; padding:15px;">
-                    <form method="POST">
-                        <label style="font-size:10px; display:block; margin-bottom:2px;">ID пользователя (только латиница):</label>
-                        <input name="u_id" required style="width:100%; padding:6px; margin-bottom:8px; border-radius:3px; border:1px solid #777;"><br>
-                        
-                        <label style="font-size:10px; display:block; margin-bottom:2px;">Никнейм (отображаемое имя):</label>
-                        <input name="dn" style="width:100%; padding:6px; margin-bottom:8px; border-radius:3px; border:1px solid #777;"><br>
-                        
-                        <label style="font-size:10px; display:block; margin-bottom:2px;">Пароль:</label>
-                        <input name="pwd" type="password" required style="width:100%; padding:6px; margin-bottom:12px; border-radius:3px; border:1px solid #777;"><br>
-                        
-                        <input type="submit" name="login" value="ПОДКЛЮЧИТЬСЯ И ВОЙТИ" class="btn" style="width:100%; font-weight:bold; background:#a01ae8;">
-                    </form>
-                    <p style="font-size:9px; color:#777; text-align:center; margin-top:8px;">* Если указанный ID свободен, регистрация произойдет автоматически.</p>
-                </div>
-
-                <div style="text-align:center; font-size:10px; color:#976; margin-top:40px;">&copy; <?php echo date('Y'); ?> Impisre Software</div>
-            </div>
+        <div class="hdr"><span>Вход в CrossEra</span></div>
+        <div class="main-panel">
+            <?php if(isset($_SESSION['ce_error'])): echo "<div class='err-msg'>".$_SESSION['ce_error']."</div>"; unset($_SESSION['ce_error']); endif; ?>
+            <form method="POST" style="max-width:300px; margin:20px auto;">
+                ID (логин латиницей): <input name="u_id" required style="width:100%; padding:5px; margin-bottom:5px;"><br>
+                Ник (отображаемое имя): <input name="dn" style="width:100%; padding:5px; margin-bottom:5px;"><br>
+                Пароль: <input name="pwd" type="password" required style="width:100%; padding:5px; margin-bottom:10px;"><br>
+                <input type="submit" name="login" value="Войти / Создать" class="btn" style="width:100%;">
+            </form>
         </div>
     <?php else: ?>
         <div class="hdr">
-            <a href="?view=profile" style="color:white; text-decoration:none; display:flex; align-items:center;">
-                <?php echo get_avatar_html($myU, $myN); ?> <span style="margin-left:5px;"><?php echo $myN; ?></span>
+            <a href="?view=profile&uid=<?php echo $myU; ?>" style="color:white; text-decoration:none;">
+                <?php echo get_avatar_html($myU, $myN); ?> <span><?php echo $myN; ?></span>
             </a>
-            <a href="?logout=1" style="color:white; font-size:10px; text-decoration:none;">[Выход]</a>
+            <div>
+                <a href="?view=search" style="color:white; margin-right:10px; text-decoration:none;">🔍 Поиск</a>
+                <a href="?logout=1" style="color:white; font-size:10px;">[Выход]</a>
+            </div>
         </div>
 
         <div class="nav">
-            <a href="?view=chat&to=all" class="<?php echo ($to=='all')?'active':''; ?>"> Чат <?php echo $has_global_new ? '<span class="unread-dot">●</span>':''; ?></a>
-            <a href="?view=groups" class="<?php echo ($view=='groups')?'active':''; ?>"> Группы</a>
+            <a href="?view=chat&to=all" class="<?php echo ($view=='chat'&&$to=='all')?'active':''; ?>">Общий Чат</a>
+            <a href="?view=groups" class="<?php echo ($view=='groups'||strpos($to,'group_')===0||strpos($to,'gb_')===0)?'active':''; ?>">Группы/Каналы</a>
             <a href="?view=contacts" class="<?php echo ($view=='contacts')?'active':''; ?>">Контакты</a>
-            <a href="?view=chat&to=saved" class="<?php echo ($to=='saved_'.$myU || $to=='saved')?'active':''; ?>">Избр.</a>
-            <a href="?view=mod_store" class="<?php echo ($view=='mod_store')?'active':''; ?>">Моды</a>
-            <a href="?view=info" class="<?php echo ($view=='info')?'active':''; ?>">Инфа</a>
-            <?php foreach($myEnabledMods as $m): ?>
-                <a href="?view=run_<?php echo $m; ?>" style="background:#b58900; color:#fff;">модуль <?php echo substr($m,0,4); ?></a>
-            <?php endforeach; ?>
+            <a href="?view=chat&to=saved" class="<?php echo ($view=='chat'&&$to=='saved_'.$myU)?'active':''; ?>">Избр.</a>
+            <a href="?view=mods_page" class="<?php echo ($view=='mods_page'||$view=='edit_mod'||$view=='run_mod')?'active':''; ?>">🧱 Модули</a>
+            <a href="?view=digest" class="<?php echo ($view=='digest')?'active':''; ?>">⚡ Дайджест</a>
+            <a href="?view=profile&uid=<?php echo $myU; ?>" class="<?php echo ($view=='profile'&&($_GET['uid']??'')==$myU)?'active':''; ?>">Инфо</a>
         </div>
 
         <div class="content">
-            <?php if($view == 'info'): ?>
-                <div class="main-panel" style="line-height:1.6;">
-                    <div style="background:#a01ae8; color:white; padding:10px; margin-bottom:15px; font-size:11px; border-radius:3px;">
-                        <strong>Impisre Software</strong> представляет: кросс-платформенный защищённый мессенджер.
+            <?php if($view == 'digest'): ?>
+                <div class="main-panel">
+                    <h3>⚡ Текстовый дайджест обновлений</h3><br>
+                    
+                    <?php 
+                    if(file_exists($reqF)):
+                        foreach(file($reqF) as $l):
+                            if(strpos($l, '<?php') !== false || !trim($l)) continue;
+                            $d = explode('|', trim($l));
+                            if(($d[1]??'') == $myU):
+                                $from_id = htmlspecialchars($d[0]);
+                                $from_name = htmlspecialchars($d[2] ?? $d[0]);
+                    ?>
+                                <div class="mod-card" style="background:#b58900; color:white; border:none;">
+                                    🔔 <b><?php echo $from_name; ?></b> (@<?php echo $from_id; ?>) хочет добавить вас в контакты.
+                                    <div style="margin-top:5px;">
+                                        <a href="?req_action=accept&from_uid=<?php echo $from_id; ?>" class="btn" style="background:#2aa198;">Принять</a>
+                                        <a href="?req_action=reject&from_uid=<?php echo $from_id; ?>" class="btn" style="background:#dc322f;">Отклонить</a>
+                                    </div>
+                                </div>
+                    <?php 
+                            endif;
+                        endforeach;
+                    endif; 
+                    ?>
+
+                    <div class="mod-card">
+                        <b>Общий чат:</b> <?php echo has_new_messages($myU, 'all', $rDir.'global.db.php') ? "<span style='color:red;'>Есть новые сообщения!</span>" : "Нет обновлений"; ?>
                     </div>
-                    <h3> Возможности</h3>
-                    <ul>
-                        <li><b>AES-128 (from openSSL):</b> шифрование текстов на сервере.</li>
-                        <li><b>Кросс-платформеность:</b> работа на S60v5, Windows Mobile 6.1, на ПК и десктопах.</li>
-                        <li><b>Мод-система:</b> Прямая кастомизация и расширение логики приложения.</li>
-                        <li><b>Статусы и Темы:</b> трекинг онлайна и ночной режим.</li>
-                    </ul>
-                    <div style="text-align:center; font-size:10px; color:#976; margin-top:30px;">&copy; <?php echo date('Y'); ?> Impisre Software</div>
+                    <h4>Ваши группы и каналы:</h4><br>
+                    <?php 
+                    if(file_exists($groupsF)) {
+                        foreach(file($groupsF) as $l) {
+                            if(strpos($l, '<?php') !== false || !trim($l)) continue;
+                            $g = explode('|', trim($l));
+                            $g_target = "group_" . preg_replace('/[^a-z0-9_]/', '', $g[0]);
+                            echo "<div class='mod-card'><b>" . htmlspecialchars($g[1]) . ":</b> " . (has_new_messages($myU, $g_target, $rDir.$g_target.".db.php") ? "<span style='color:red;'>Новые посты!</span>" : "Тишина") . "</div>";
+                        }
+                    }
+                    ?>
+                </div>
+
+            <?php elseif($view == 'mods_page'): ?>
+                <div class="main-panel">
+                    <h3>🧱 Репозиторий WAP-модулей</h3>
+                    <p style="font-size:10px; opacity:0.7; margin-bottom:10px;">Автономные расширения системы из каталога /mods/.</p>
+                    <?php 
+                    $modFiles = glob($modDir . "*.php");
+                    if(!empty($modFiles)):
+                        foreach($modFiles as $mf):
+                            $modName = basename($mf, ".php");
+                    ?>
+                            <div class="mod-card">
+                                <b>📁 Модуль: <?php echo htmlspecialchars($modName); ?></b><br>
+                                <small style="opacity:0.6;">Путь: <?php echo htmlspecialchars($mf); ?></small>
+                                <div style="margin-top:8px;">
+                                    <a href="?view=run_mod&name=<?php echo urlencode($modName); ?>" class="btn">Запустить</a>
+                                    <a href="?view=edit_mod&name=<?php echo urlencode($modName); ?>" class="btn" style="background:#b58900;">Исходный код</a>
+                                </div>
+                            </div>
+                    <?php 
+                        endforeach;
+                    else: 
+                        echo "<div class='mod-card' style='text-align:center; padding:20px; color:#777;'>";
+                        echo "Папка <b>/mods/</b> пуста.<br>Поместите туда автономные PHP-скрипты.";
+                        echo "</div>";
+                    endif; 
+                    ?>
+                </div>
+
+            <?php elseif($view == 'run_mod'): ?>
+                <div class="main-panel">
+                    <?php 
+                    $mName = preg_replace('/[^a-z0-9_\-]/i', '', $_GET['name'] ?? '');
+                    $mPath = $modDir . $mName . ".php";
+                    if(file_exists($mPath)) {
+                        include($mPath);
+                    } else {
+                        echo "<div class='err-msg'>Модуль не найден!</div>";
+                    }
+                    ?>
+                </div>
+
+            <?php elseif($view == 'edit_mod'): ?>
+                <div class="main-panel">
+                    <?php 
+                    $mName = preg_replace('/[^a-z0-9_\-]/i', '', $_GET['name'] ?? '');
+                    $mPath = $modDir . $mName . ".php";
+                    if(file_exists($mPath)): ?>
+                        <h3>📄 Код модуля: <?php echo htmlspecialchars($mName); ?>.php</h3><br>
+                        <textarea style="width:100%; height:280px; font-family:monospace; font-size:11px; padding:5px;" readonly><?php echo htmlspecialchars(file_get_contents($mPath)); ?></textarea><br><br>
+                        <a href="?view=mods_page" class="btn" style="background:#586e75;">Назад к списку</a>
+                    <?php else: echo "Модуль не найден."; endif; ?>
+                </div>
+
+            <?php elseif($view == 'search'): ?>
+                <div class="main-panel">
+                    <h3>🔍 Поиск по всей платформе</h3><br>
+                    <form method="GET" style="margin-bottom:15px;">
+                        <input type="hidden" name="view" value="search">
+                        <input type="text" name="q" value="<?php echo htmlspecialchars($_GET['q']??''); ?>" placeholder="Что искать?" style="padding:5px; width:70%;">
+                        <input type="submit" value="Найти" class="btn">
+                    </form>
+                    <?php 
+                    $q = strtolower(htmlspecialchars($_GET['q']??''));
+                    if($q):
+                        echo "<h4>Результаты поиска:</h4><br>";
+                        echo "<b>Люди:</b><br>";
+                        if(file_exists($passF)) {
+                            foreach(file($passF) as $l) {
+                                if(strpos($l, '<?php')!==false) continue;
+                                $d = explode('|', trim($l));
+                                if(strpos(strtolower($d[0]??''), $q)!==false || strpos(strtolower($d[2]??''), $q)!==false) {
+                                    echo "• <a href='?view=profile&uid={$d[0]}'>".htmlspecialchars($d[2])." (@{$d[0]})</a><br>";
+                                }
+                            }
+                        }
+                        echo "<br><b>Группы и Каналы:</b><br>";
+                        if(file_exists($groupsF)) {
+                            foreach(file($groupsF) as $l) {
+                                if(strpos($l, '<?php')!==false) continue;
+                                $d = explode('|', trim($l));
+                                if(strpos(strtolower($d[1]??''), $q)!==false) {
+                                    $target = "group_".preg_replace('/[^a-z0-9_]/','',$d[0]);
+                                    echo "• <a href='?view=chat&to={$target}'>".htmlspecialchars($d[1])." (".($d[2]=='channel'?'Канал':'Группа').")</a><br>";
+                                }
+                            }
+                        }
+                        echo "<br><b>Сообщения из общего чата:</b><br>";
+                        if(file_exists($rDir."global.db.php")) {
+                            foreach(file($rDir."global.db.php") as $l) {
+                                if(strpos($l, '<?php')!==false) continue;
+                                $d = explode('|', trim($l));
+                                $msg = v_crypt($d[1]??'', $crypto_key, 'dec');
+                                if(strpos(strtolower($msg), $q)!==false) {
+                                    echo "<div class='mod-card' style='font-size:11px;'><b>{$d[0]}:</b> ".parse_msg($msg)."</div>";
+                                }
+                            }
+                        }
+                    endif;
+                    ?>
+                </div>
+
+            <?php elseif($view == 'profile'): ?>
+                <?php 
+                $uid = preg_replace('/[^a-z0-9_]/', '', $_GET['uid'] ?? $myU);
+                $cf = $viewsDir . md5($uid) . '.txt';
+                $views = file_exists($cf) ? (int)file_get_contents($cf) : 0;
+                if($uid != $myU) { $views++; file_put_contents($cf, $views); }
+                
+                $name = $uid; $about = "О себе ничего не указано.";
+                if(file_exists($passF)) {
+                    foreach(file($passF) as $l) {
+                        $d = explode('|', trim($l));
+                        if(($d[0]??'') == $uid) { $name = $d[2]??$uid; break; }
+                    }
+                }
+                if(file_exists($avatarDir . md5($uid) . '.txt')) $about = file_get_contents($avatarDir . md5($uid) . '.txt');
+                ?>
+                <div class="main-panel" style="text-align:center;">
+                    <?php echo get_avatar_html($uid, $name); ?><br><br>
+                    <h3><?php echo htmlspecialchars($name); ?> (@<?php echo $uid; ?>)</h3>
+                    <p style="font-size:10px; color:#777; margin-top:4px;">Просмотров профиля: <b><?php echo $views; ?></b></p>
+                    <hr style="margin:15px 0; opacity:0.2;">
+                    <div class="mod-card" style="text-align:left; min-height:60px;">
+                        <b>Инфо (.plan файл):</b><br><?php echo nl2br(htmlspecialchars($about)); ?>
+                    </div>
+                    
+                    <?php if($uid == $myU): ?>
+                        <form method="POST" enctype="multipart/form-data" style="text-align:left;" class="mod-card">
+                            <b>Редактировать визитку:</b><br><br>
+                            <label style="font-size:10px;">Аватар:</label> <input type="file" name="ava_file"><br><br>
+                            <label style="font-size:10px;">О себе:</label><br>
+                            <textarea name="about" style="width:100%; height:50px;"><?php echo htmlspecialchars($about); ?></textarea><br><br>
+                            <input type="submit" name="up_profile" value="Сохранить визитку" class="btn">
+                            <a href="?toggle_theme=1" class="btn" style="background:#586e75; float:right;">Сменить тему</a>
+                        </form>
+                    <?php else: ?>
+                        <a href="?add_c=<?php echo $uid; ?>" class="btn">+ Добавить в контакты</a>
+                        <a href="?view=chat&to=<?php echo ($myU < $uid) ? "pm_{$myU}_{$uid}" : "pm_{$uid}_{$myU}"; ?>" class="btn" style="background:#a01ae8;">Написать ЛС</a>
+                    <?php endif; ?>
+                </div>
+
+            <?php elseif($view == 'edit'): ?>
+                <div class="main-panel">
+                    <h3>✏️ Редактирование сообщения</h3><br>
+                    <?php 
+                    $mid = preg_replace('/[^a-z0-9]/', '', $_GET['mid'] ?? '');
+                    $old_text = '';
+                    if(file_exists($curF)) {
+                        foreach(file($curF) as $l) {
+                            if(md5(trim($l)) == $mid) {
+                                $d = explode('|', trim($l));
+                                if(($d[3]??'') == $myU) $old_text = v_crypt($d[1], $crypto_key, 'dec');
+                                break;
+                            }
+                        }
+                    }
+                    if($old_text): ?>
+                        <form method="POST">
+                            <input type="hidden" name="mid" value="<?php echo $mid; ?>">
+                            <textarea name="new_text" style="width:100%; height:60px; padding:5px;"><?php echo htmlspecialchars($old_text); ?></textarea><br><br>
+                            <input type="submit" name="edit_msg" value="Применить изменения" class="btn">
+                            <a href="?view=chat&to=<?php echo $to; ?>" class="btn" style="background:#586e75;">Отмена</a>
+                        </form>
+                    <?php else: echo "Сообщение не найдено или доступ запрещен."; endif; ?>
+                </div>
+
+            <?php elseif($view == 'groups'): ?>
+                <div class="main-panel">
+                    <h3>Каналы и Группы</h3><br>
+                    <form method="POST" style="background:rgba(0,0,0,0.05); padding:10px; border-radius:5px; margin-bottom:15px;">
+                        <input name="r_name" required placeholder="Название комнаты" style="padding:4px;">
+                        <select name="r_type" style="padding:3px;"><option value="group">Группа (Чат)</option><option value="channel">Канал (Стена)</option></select>
+                        <input type="submit" name="create_room" value="Создать" class="btn">
+                    </form>
+                    <?php if(file_exists($groupsF)) foreach(file($groupsF) as $l): if(strpos($l,'<?php')!==false || !trim($l))continue; $g=explode('|',trim($l)); 
+                        $g0_safe = preg_replace('/[^a-z0-9_]/', '', $g[0]);
+                        $g_target = "group_" . $g0_safe;
+                        ?>
+                        <div class="mod-card">
+                            <b>[<?php echo ($g[2]=='channel'?'Канал':'Группа'); ?>] <?php echo htmlspecialchars($g[1]); ?></b> 
+                            <a href="?view=chat&to=<?php echo $g_target; ?>" class="btn" style="float:right;">Войти</a>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+
+            <?php elseif($view == 'contacts'): ?>
+                <div class="main-panel">
+                    <h3>Мои контакты</h3><br>
+                    <?php $cf = $rDir . "contacts_" . $myU . ".db.php"; if(file_exists($cf)): 
+                        foreach(file($cf) as $l): if(strpos($l,'<?php')!==false || !trim($l))continue; $c=explode('|',trim($l)); 
+                        $c0_safe = preg_replace('/[^a-z0-9_]/', '', $c[0]);
+                        $pm = ($myU < $c0_safe) ? "pm_{$myU}_{$c0_safe}" : "pm_{$c0_safe}_{$myU}"; 
+                        ?>
+                        <div class="mod-card">
+                            <?php echo get_avatar_html($c0_safe, $c[1]); ?> 
+                            <b><?php echo htmlspecialchars($c[1]); ?></b> 
+                            <a href="?view=chat&to=<?php echo $pm; ?>" class="btn" style="float:right;">Диалог</a>
+                        </div>
+                    <?php endforeach; else: echo "Список пуст"; endif; ?>
                 </div>
 
             <?php elseif($view == 'chat'): ?>
-                <?php if($sys_error): ?>
-                    <div class="err-msg" style="margin: 5px;"><?php echo $sys_error; ?></div>
-                <?php endif; ?>
+                <?php 
+                $isChannel = false; $channelOwner = '';
+                if(strpos($to, 'group_') === 0) {
+                    $r_id = str_replace('group_', '', $to);
+                    if(file_exists($groupsF)) {
+                        foreach(file($groupsF) as $gl) {
+                            $gd = explode('|', trim($gl));
+                            if($gd[0] == $r_id && ($gd[2]??'') == 'channel') { $isChannel = true; $channelOwner = $gd[3]??''; break; }
+                        }
+                    }
+                }
+                $isGuestbook = (strpos($to, 'gb_') === 0);
+                ?>
+                <div style="background:rgba(0,0,0,0.02); padding:5px 10px; font-size:10px; display:flex; justify-content:space-between; flex-shrink:0;">
+                    <span>Комната: <b><?php echo $to; ?></b> <?php if($isChannel) echo "(Публичный Канал)"; if($isGuestbook) echo "(Гостевая книга)"; ?></span>
+                    <a href="?export_txt=1&to=<?php echo $to; ?>" style="color:#2aa198; text-decoration:none;">💾 Скачать (.TXT)</a>
+                </div>
 
                 <div id="chat">
-                    <?php if(file_exists($curF)) {
+                    <?php 
+                    if(file_exists($curF)):
                         $lines = file($curF);
-                        foreach($lines as $idx => $l) {
+                        foreach($lines as $idx => $l):
                             if(strpos($l, '<?php') !== false || !trim($l)) continue;
                             $d = explode('|', trim($l)); if(count($d) < 3) continue; 
-                            $uid = $d[3] ?? ''; $msgID = md5(trim($l));
+                            $uid = preg_replace('/[^a-z0-9_]/', '', $d[3] ?? ''); 
+                            $msgID = md5(trim($l));
                             $plainMsg = v_crypt($d[1], $crypto_key, 'dec');
-                            ?>
+                            $isEdited = ($d[4] ?? 0) == 1;
+                    ?>
                             <div class="m">
                                 <?php echo get_avatar_html($uid, $d[0]); ?>
-                                <b><?php echo $d[0]; ?></b>
-                                <?php if($uid && $uid != $myU): ?>
-                                    <a href="?add_c=<?php echo $uid; ?>&n=<?php echo urlencode($d[0]); ?>" style="font-size:9px; color:#2aa198; text-decoration:none; border:1px solid; padding:0 2px; margin-left:4px;">+контакт</a>
-                                <?php endif; ?>
+                                <a href="?view=profile&uid=<?php echo $uid; ?>" style="text-decoration:none; color:inherit;"><b><?php echo $d[0]; ?></b></a>
                                 
                                 <small style="float:right; opacity:0.5;">
-                                    <?php echo $d[2]; ?>
+                                    <?php echo htmlspecialchars($d[2]); ?> <?php if($isEdited) echo "<i>(ред.)</i>"; ?>
+                                    <?php if($uid == $myU && $plainMsg !== "[Сообщение удалено]"): ?>
+                                        <a href="?view=edit&mid=<?php echo $msgID; ?>&to=<?php echo $to; ?>" style="color:#b58900; text-decoration:none; margin-left:5px;">[ред]</a>
+                                    <?php endif; ?>
                                     <?php if(($uid == $myU || $myU == $adminID) && $plainMsg !== "[Сообщение удалено]"): ?>
-                                        <a href="?del_msg=<?php echo $msgID; ?>&to=<?php echo $to; ?>" class="del-link" title="Удалить сообщение">[×]</a>
+                                        <a href="?del_msg=<?php echo $msgID; ?>&to=<?php echo $to; ?>" style="color:#dc322f; text-decoration:none; margin-left:5px;">[×]</a>
                                     <?php endif; ?>
                                 </small><br>
                                 
-                                <div style="margin-left:29px;"><?php echo parse_msg($plainMsg); ?></div>
+                                <div style="margin-left:29px; margin-top:3px; font-size:13px;"><?php echo parse_msg($plainMsg); ?></div>
+                                
+                                <?php if($isChannel && !$isGuestbook): ?>
+                                    <div style="margin-left:29px; margin-top:4px;">
+                                        <a href="?view=chat&to=gb_<?php echo $msgID; ?>" style="font-size:10px; color:#2aa198; text-decoration:none;">💬 Гостевая книга (Отзывы)</a>
+                                    </div>
+                                <?php endif; ?>
+
                                 <div class="reac-bar">
                                     <?php 
                                     $rf = $reacDir . $msgID . ".db.php";
@@ -500,114 +741,51 @@ unset($_SESSION['ce_error']);
                                         foreach($rcs as $rl) {
                                             if(strpos($rl, '<?php') !== false) continue;
                                             $d_r = explode('|', trim($rl));
-                                            if(isset($d_r[2])) $counts[$d_r[2]] = ($counts[$d_r[2]] ?? 0) + 1;
+                                            if(isset($d_r[2])) {
+                                                $safe_reac = preg_replace('/[^a-z0-9\.]/', '', $d_r[2]);
+                                                $counts[$safe_reac] = ($counts[$safe_reac] ?? 0) + 1;
+                                            }
                                         }
-                                        foreach($counts as $img => $count) echo "<span class='reac-btn'><img src='smiles/$img' width='12'> $count</span>";
+                                        foreach($counts as $img => $count) {
+                                            echo "<span class='reac-btn'><img src='smiles/" . htmlspecialchars($img) . "' width='12'> " . (int)$count . "</span>";
+                                        }
                                     }
                                     ?>
                                     <a href="#" onclick="document.getElementById('rm<?php echo $idx;?>').style.display='block'; return false;" class="reac-btn">+</a>
                                     <div id="rm<?php echo $idx;?>" class="reac-menu">
-                                        <?php foreach(['fire.gif','smile.gif','good.gif','heart.gif'] as $t) echo "<a href='?add_reac=1&mid=$msgID&type=$t&to=$to'><img src='smiles/$t' width='20'></a> "; ?>
+                                        <?php foreach(['fire.gif','smile.gif','good.gif','heart.gif'] as $t) echo "<a href='?add_reac=1&mid=$msgID&type=$t&to=$to'><img src='smiles/$t' width='16'></a> "; ?>
                                         <a href="#" onclick="this.parentElement.style.display='none'; return false;" style="color:red;">&times;</a>
                                     </div>
                                 </div>
                             </div>
-                        <?php }
-                    } ?>
-                </div>
-                <form method="POST" enctype="multipart/form-data" style="padding:8px; background:rgba(0,0,0,0.05); border-top:1px solid rgba(0,0,0,0.1); flex-shrink:0;">
-                    <textarea name="msg" style="width:100%; height:40px; border-radius:3px; padding:5px;" placeholder="Сообщение..."></textarea>
-                    <div style="margin-top:5px; display:flex; justify-content:space-between; align-items:center;">
-                        <input type="file" name="f" style="font-size:10px; width:60%;">
-                        <input type="submit" name="send_msg" value=">>" class="btn">
-                    </div>
-                </form>
-
-            <?php elseif($view == 'contacts'): ?>
-                <div class="main-panel">
-                    <h3>Мои контакты</h3><br>
-                    <?php if(file_exists($myContactsF)): 
-                        foreach(file($myContactsF) as $l): if(strpos($l,'<?php')!==false || !trim($l))continue; $c=explode('|',trim($l)); 
-                        $pm = ($myU < $c[0]) ? "pm_{$myU}_{$c[0]}" : "pm_{$c[0]}_{$myU}"; 
-                        $has_pm_unread = has_new_messages($myU, $pm, $rDir . $pm . ".db.php");
-                        ?>
-                        <div class="mod-card">
-                            <?php echo get_avatar_html($c[0], $c[1]); ?> 
-                            <b><?php echo $c[1]; ?></b> 
-                            <?php echo $has_pm_unread ? '<span style="color:#dc322f; font-size:10px;">(НОВОЕ)</span>':''; ?>
-                            <a href="?view=chat&to=<?php echo $pm; ?>" class="btn" style="float:right;">Чат</a>
-                        </div>
-                    <?php endforeach; else: echo "Список пуст"; endif; ?>
-                </div>
-
-            <?php elseif($view == 'profile'): ?>
-                <div class="main-panel" style="text-align:center;">
-                    <h3>Настройки профиля</h3><br>
-                    
-                    <?php if($sys_error): ?>
-                        <div class="err-msg"><?php echo $sys_error; ?></div>
-                    <?php endif; ?>
-
-                    <?php echo get_avatar_html($myU, $myN); ?><br><br><b><?php echo $myN; ?></b><hr style="margin:15px 0; opacity:0.2;">
-                    
-                    <form method="POST" enctype="multipart/form-data">
-                        <label style="font-size:11px; display:block; margin-bottom:5px;">Сменить аватар:</label>
-                        <input type="file" name="ava_file"><br><br>
-                        <input type="submit" name="up_ava" value="Обновить" class="btn">
-                    </form>
-                    
-                    <hr style="margin:20px 0; opacity:0.2;">
-                    <p>Текущая тема: <b><?php echo ($theme == 'dark') ? 'Тёмная ' : 'Светлая '; ?></b></p><br>
-                    <a href="?toggle_theme=1" class="btn" style="background:#586e75;">Переключить тему оформления</a>
-                </div>
-
-            <?php elseif($view == 'groups'): ?>
-                <div class="main-panel">
-                    <h3>Каналы и Группы</h3><br>
-                    <form method="POST" style="background:rgba(0,0,0,0.05); padding:10px; border-radius:5px; margin-bottom:15px;">
-                        <input name="r_name" required placeholder="Название" style="padding:4px;">
-                        <select name="r_type" style="padding:3px;"><option value="group">Группа</option><option value="channel">Канал</option></select>
-                        <input type="submit" name="create_room" value="+" class="btn" style="padding:4px 10px;">
-                    </form>
-                    <?php if(file_exists($groupsF)) foreach(file($groupsF) as $l): if(strpos($l,'<?php')!==false || !trim($l))continue; $g=explode('|',trim($l)); 
-                        $g_target = "group_" . $g[0];
-                        $has_g_unread = has_new_messages($myU, $g_target, $rDir . $g_target . ".db.php");
-                        ?>
-                        <div class="mod-card">
-                            <b><?php echo ($g[2]=='channel'?'канал':'группа'); ?> <?php echo $g[1]; ?></b> 
-                            <?php echo $has_g_unread ? '<span style="color:#dc322f; font-size:10px;">(НОВОЕ)</span>':''; ?>
-                            <a href="?view=chat&to=<?php echo $g_target; ?>" class="btn" style="float:right;">Войти</a>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-
-            <?php elseif($view == 'mod_store'): ?>
-                <div class="main-panel">
-                    <h3>Магазин расширений</h3><br>
-                    <?php foreach(glob($modDir."*.php") as $f): $fn=basename($f,'.php'); $inst=in_array($fn,$myEnabledMods); ?>
-                        <div class="mod-card">модуль-<?php echo $fn; ?><a href="?toggle_my_mod=<?php echo $fn; ?>" class="btn" style="float:right; background:<?php echo $inst?'#dc322f':'#2aa198';?>"><?php echo $inst?'Удалить':'Ставить';?></a></div>
-                    <?php endforeach; ?>
-                </div>
-
-            <?php elseif(strpos($view, 'run_') === 0): ?>
-                <div class="main-panel">
                     <?php 
-                    $mName = str_replace('run_', '', $view); 
-                    $mName = preg_replace('/[^a-zA-Z0-9_]/', '', $mName);
-                    // Проверяем, куплен/разрешен ли модуль текущему пользователю или это админ
-                    if(!empty($mName) && file_exists($modDir.$mName.".php") && (in_array($mName, $myEnabledMods) || $myU == $adminID)){ 
-                        include_once($modDir.$mName.".php"); 
-                        $f = "mod_".$mName."_main"; 
-                        if(function_exists($f)) $f($myU, $adminID); 
-                    } else {
-                        echo "<b style='color:red;'>Доступ к модулю заблокирован. Активируйте его в магазине!</b>";
-                    }
+                        endforeach;
+                    endif; 
                     ?>
                 </div>
+
+                <?php if(!$isChannel || $channelOwner == $myU || $isGuestbook): ?>
+                    <form method="POST" enctype="multipart/form-data" style="padding:6px; background:rgba(0,0,0,0.05); border-top:1px solid rgba(0,0,0,0.1); flex-shrink:0;">
+                        <div style="margin-bottom:5px; display:flex; gap:4px; flex-wrap:wrap;">
+                            <span style="font-size:9px; align-self:center; opacity:0.6;">Быстро:</span>
+                            <a href="#" class="fast-reply" onclick="document.getElementsByName('msg')[0].value+='Да'; return false;">Да</a>
+                            <a href="#" class="fast-reply" onclick="document.getElementsByName('msg')[0].value+='Нет'; return false;">Нет</a>
+                            <a href="#" class="fast-reply" onclick="document.getElementsByName('msg')[0].value+='Ок'; return false;">Ок</a>
+                            <a href="#" class="fast-reply" onclick="document.getElementsByName('msg')[0].value+='(ツ)'; return false;">(ツ)</a>
+                            <a href="#" class="fast-reply" onclick="document.getElementsByName('msg')[0].value+='¯\\_(ツ)_/¯'; return false;">¯\_(ツ)_/¯</a>
+                        </div>
+                        <textarea name="msg" style="width:100%; height:40px; border-radius:3px; padding:4px;" placeholder="Ваше сообщение..."></textarea>
+                        <div style="margin-top:4px; display:flex; justify-content:space-between; align-items:center;">
+                            <input type="file" name="f" style="font-size:10px; width:65%;">
+                            <input type="submit" name="send_msg" value=">>" class="btn" style="padding:4px 15px;">
+                        </div>
+                    </form>
+                <?php else: ?>
+                    <div style="padding:10px; text-align:center; background:#eee; font-size:11px; color:#666;">Это канал. Писать сюда может только создатель.</div>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
     <?php endif; ?>
 </div>
-<script>var c=document.getElementById('chat');if(c)c.scrollTop=c.scrollHeight;</script>
 </body>
 </html>
