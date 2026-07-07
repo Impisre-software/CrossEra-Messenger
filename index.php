@@ -51,7 +51,6 @@ if($myU) {
     file_put_contents($onlineF, implode("", $newOnlines), LOCK_EX);
 }
 
-// Функции безопасной работы с БД
 function db_append($f, $d) {
     if(!file_exists($f)) file_put_contents($f, "<?php die(); ?>\n");
     $d = str_replace(["\r", "\n"], " ", $d);
@@ -154,7 +153,6 @@ function has_new_messages($u, $target, $file_path) {
     return false;
 }
 
-// Роутинг и входящие параметры
 $to = preg_replace('/[^a-z0-9_]/', '', $_REQUEST['to'] ?? 'all');
 if($to == 'saved' && $myU) $to = "saved_" . $myU;
 
@@ -165,7 +163,7 @@ if($to == 'all') $curF = $rDir . "global.db.php";
 
 if($myU && $view == 'chat') { set_last_view_time($myU, $to); }
 
-// ФУНКЦИЯ ЭКСПОРТА В ТЕКСТ (TXT)
+// Экспорт в TXT
 if(isset($_GET['export_txt']) && $myU && file_exists($curF)) {
     header('Content-Type: text/plain; charset=utf-8');
     header('Content-Disposition: attachment; filename="history_'.$to.'_'.date('Y-m-d').'.txt"');
@@ -178,7 +176,7 @@ if(isset($_GET['export_txt']) && $myU && file_exists($curF)) {
     exit;
 }
 
-// УДАЛЕНИЕ СООБЩЕНИЯ
+// Удаление сообщения
 if(isset($_GET['del_msg']) && $myU) {
     $target_mid = preg_replace('/[^a-z0-9]/', '', $_GET['del_msg']);
     if(file_exists($curF)) {
@@ -199,7 +197,7 @@ if(isset($_GET['del_msg']) && $myU) {
     header("Location: ?view=chat&to=$to"); exit;
 }
 
-// РЕДАКТИРОВАНИЕ СООБЩЕНИЯ
+// Редактирование сообщения
 if(isset($_POST['edit_msg']) && $myU) {
     $target_mid = preg_replace('/[^a-z0-9]/', '', $_POST['mid']);
     $new_text = $_POST['new_text'] ?? '';
@@ -221,9 +219,9 @@ if(isset($_POST['edit_msg']) && $myU) {
     header("Location: ?view=chat&to=$to"); exit;
 }
 
-// РЕАКЦИИ
-if(isset($_GET['add_reac']) && $myU) {
-    $mid = preg_replace('/[^a-z0-9]/', '', $_GET['add_reac']); 
+// Реакции (Чистый PHP GET-обработчик)
+if(isset($_GET['add_reac_id']) && $myU) {
+    $mid = preg_replace('/[^a-z0-9]/', '', $_GET['add_reac_id']); 
     $type = preg_replace('/[^a-z0-9\.]/', '', $_GET['type']); 
     $rf = $reacDir . $mid . ".db.php";
     $already = false;
@@ -231,10 +229,10 @@ if(isset($_GET['add_reac']) && $myU) {
         foreach(file($rf) as $line) { if(strpos($line, "$myU|$type") !== false) $already = true; }
     }
     if(!$already) db_append($rf, "$myU|$myN|$type");
-    header("Location: " . ($_SERVER['HTTP_REFERER'] ?? 'index.php')); exit;
+    header("Location: ?view=chat&to=$to#msg_$mid"); exit;
 }
 
-// ОТПРАВКА ЗАЯВКИ В КОНТАКТЫ
+// Заявка в контакты
 if(isset($_GET['add_c']) && $myU) {
     $cid = preg_replace('/[^a-z0-9]/', '', $_GET['add_c']);
     if($cid != $myU) {
@@ -253,7 +251,7 @@ if(isset($_GET['add_c']) && $myU) {
     header("Location: ?view=profile&uid=" . $cid); exit;
 }
 
-// ОБРАБОТКА ЗАЯВОК: ПРИНЯТЬ ИЛИ ОТКЛОНИТЬ
+// Обработка заявок
 if(isset($_GET['req_action']) && $myU) {
     $from_uid = preg_replace('/[^a-z0-9]/', '', $_GET['from_uid']);
     $action = $_GET['req_action'];
@@ -279,7 +277,7 @@ if(isset($_GET['req_action']) && $myU) {
     header("Location: ?view=digest"); exit;
 }
 
-// СМЕНА АВАТАРА И ОПИСАНИЯ ПРОФИЛЯ
+// Смена аватара и инфо
 if(isset($_POST['up_profile']) && $myU){
     if(!empty($_FILES['ava_file']['tmp_name'])) {
         $check = @getimagesize($_FILES['ava_file']['tmp_name']);
@@ -295,7 +293,7 @@ if(isset($_POST['up_profile']) && $myU){
     header("Location: ?view=profile"); exit;
 }
 
-// СОЗДАНИЕ ГРУППЫ / КАНАЛА
+// Создание комнаты
 if (isset($_POST['create_room']) && $myU) {
     $name = str_replace('|', '-', htmlspecialchars($_POST['r_name']));
     $type = ($_POST['r_type'] == 'channel') ? 'channel' : 'group'; 
@@ -304,7 +302,7 @@ if (isset($_POST['create_room']) && $myU) {
     header("Location: ?view=groups"); exit;
 }
 
-// АВТОРИЗАЦИЯ И РЕГИСТРАЦИЯ
+// Авторизация
 if(isset($_POST['login'])){
     $u = strtolower(preg_replace('/[^a-z0-9]/', '', $_POST['u_id']));
     $p = $_POST['pwd'] ?? ''; 
@@ -334,7 +332,7 @@ if(isset($_POST['login'])){
 
 if(isset($_GET['logout'])){ session_destroy(); header("Location: index.php"); exit; }
 
-// ОТПРАВКА СООБЩЕНИЙ
+// Отправка сообщений
 if($myU && isset($_POST['send_msg'])){
     $m = $_POST['msg'] ?? ''; $fT = ""; $isValidFile = true;
     if(!empty($_FILES['f']['name'])){
@@ -383,7 +381,6 @@ if($myU && isset($_POST['send_msg'])){
         
         body { font-family:sans-serif; font-size:12px; }
         
-        /* Классическое блочное позиционирование для стабильного скролла на ретро-ОС */
         .box { width:100%; min-height:100%; display:block; position:relative; }
         .hdr { background:#a01ae8; color:white; padding:10px; font-weight:bold; }
         .nav { background:#93a1a1; padding:5px; border-bottom:1px solid #586e75; }
@@ -397,16 +394,19 @@ if($myU && isset($_POST['send_msg'])){
         .m { padding:8px 0; position:relative; }
         .btn { background:#2aa198; color:white; border:none; padding:4px 10px; cursor:pointer; text-decoration:none; font-size:11px; border-radius:3px; display:inline-block; }
         .mod-card { padding:10px; margin-bottom:8px; border-radius:5px; position:relative; }
+        
+        /* Блок реакций */
         .reac-bar { margin-left:29px; margin-top:4px; display:block; }
-        .reac-btn { background:#f0f0f0; border:1px solid #ccc; border-radius:10px; padding:1px 4px; font-size:9px; text-decoration:none; color:#333; display:inline-block; margin-right:3px; }
+        .reac-btn { background:#f0f0f0; border:1px solid #ccc; border-radius:10px; padding:1px 4px; font-size:9px; text-decoration:none; color:#333; display:inline-block; margin-right:3px; vertical-align:middle; }
         body.theme-dark .reac-btn { background:#2a2a2a; border:1px solid #444; color:#ccc; }
-        .reac-menu { display:none; position:absolute; background:white; border:1px solid #333; padding:5px; z-index:10; border-radius:5px; bottom:20px; }
-        body.theme-dark .reac-menu { background:#222; border-color:#555; }
+        
+        .reac-label { background:#f0f0f0; border:1px solid #ccc; border-radius:10px; padding:1px 8px; font-size:9px; color:#333; cursor:pointer; display:inline-block; text-decoration:none; vertical-align:middle; -webkit-user-select:none; -moz-user-select:none; -ms-user-select:none; user-select:none; }
+        body.theme-dark .reac-label { background:#2a2a2a; border:1px solid #444; color:#ccc; }
+        
         .err-msg { background:#dc322f; color:white; padding:8px; margin-bottom:10px; text-align:center; font-weight:bold; }
         .fast-reply { background:#eee; border:1px solid #ccc; padding:2px 5px; font-size:10px; text-decoration:none; color:#000; border-radius:3px; display:inline-block; }
         body.theme-dark .fast-reply { background:#333; border-color:#555; color:#fff; }
         
-        /* Фиксированная форма отправки снизу экрана */
         .chat-form-fixed { position:fixed; bottom:0; left:0; width:100%; background:#eee; border-top:1px solid #ccc; padding:6px; z-index:100; }
         body.theme-dark .chat-form-fixed { background:#002b36; border-top:1px solid #586e75; }
     </style>
@@ -489,6 +489,31 @@ if($myU && isset($_POST['send_msg'])){
                         }
                     }
                     ?>
+                </div>
+
+            <?php elseif($view == 'choose_reac'): ?>
+                <div class="main-panel">
+                    <h3>Выберите реакцию на сообщение</h3>
+                    <p style="opacity:0.6; margin-bottom:10px;">Выберите эмодзи ниже, чтобы выразить отношение к посту:</p>
+                    <div class="mod-card" style="text-align:center; padding:25px 10px;">
+                        <?php 
+                        $mid = preg_replace('/[^a-z0-9]/', '', $_GET['mid'] ?? '');
+                        $emojis = [
+                            'fire.gif' => 'Огонь', 
+                            'smile.gif' => 'Улыбка', 
+                            'good.gif' => 'Класс', 
+                            'heart.gif' => 'Сердце'
+                        ];
+                        foreach($emojis as $img => $title) {
+                            echo "<a href='?add_reac_id=$mid&type=$img&to=$to' style='margin:0 12px; display:inline-block; text-decoration:none;'>";
+                            echo "<img src='smiles/$img' width='24' height='24' style='vertical-align:middle; border:none;'><br>";
+                            echo "<span style='font-size:10px; color:#2aa198; display:block; margin-top:4px;'>$title</span>";
+                            echo "</a>";
+                        }
+                        ?>
+                    </div>
+                    <br>
+                    <a href="?view=chat&to=<?php echo $to; ?>#msg_<?php echo $mid; ?>" class="btn" style="background:#586e75;">&lt;&lt; Назад в чат</a>
                 </div>
 
             <?php elseif($view == 'mods_page'): ?>
@@ -826,7 +851,7 @@ SOFTWARE.</textarea>
                             $plainMsg = v_crypt($d[1], $crypto_key, 'dec');
                             $isEdited = ($d[4] ?? 0) == 1;
                     ?>
-                            <div class="m">
+                            <div class="m" id="msg_<?php echo $msgID; ?>">
                                 <?php echo get_avatar_html($uid, $d[0]); ?>
                                 <a href="?view=profile&uid=<?php echo $uid; ?>" style="text-decoration:none; color:inherit;"><b><?php echo $d[0]; ?></b></a>
                                 
@@ -866,11 +891,8 @@ SOFTWARE.</textarea>
                                         }
                                     }
                                     ?>
-                                    <a href="#" onclick="document.getElementById('rm<?php echo $idx;?>').style.display='block'; return false;" class="reac-btn">+</a>
-                                    <div id="rm<?php echo $idx;?>" class="reac-menu">
-                                        <?php foreach(['fire.gif','smile.gif','good.gif','heart.gif'] as $t) echo "<a href='?add_reac=1&mid=$msgID&type=$t&to=$to'><img src='smiles/$t' width='16'></a> "; ?>
-                                        <a href="#" onclick="this.parentElement.style.display='none'; return false;" style="color:red; text-decoration:none;">[x]</a>
-                                    </div>
+                                    <!-- PHP-ССЫЛКА НА ВЫБОР РЕАКЦИИ БЕЗ JS И CSS ХАКОВ -->
+                                    <a href="?view=choose_reac&mid=<?php echo $msgID; ?>&to=<?php echo $to; ?>" class="reac-label">[+]</a>
                                 </div>
                             </div>
                     <?php 
@@ -883,6 +905,7 @@ SOFTWARE.</textarea>
                     <form method="POST" enctype="multipart/form-data" class="chat-form-fixed">
                         <div style="margin-bottom:5px;">
                             <span style="font-size:9px; opacity:0.6;">Быстро:</span>
+                            <!-- Эти кнопки декоративные (JS), для старых устройств можно просто вводить текст руками -->
                             <a href="#" class="fast-reply" onclick="document.getElementsByName('msg')[0].value+='Да'; return false;">Да</a>
                             <a href="#" class="fast-reply" onclick="document.getElementsByName('msg')[0].value+='Нет'; return false;">Нет</a>
                             <a href="#" class="fast-reply" onclick="document.getElementsByName('msg')[0].value+='Ок'; return false;">Ок</a>
