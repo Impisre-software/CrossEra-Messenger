@@ -115,7 +115,7 @@ function parse_msg($m) {
         $m = str_replace($code, "<img src='smiles/$img' width='18' height='18' style='vertical-align:middle;' title='$code'>", $m);
     }
     $m = preg_replace('/\[img\](uploads\/[a-z0-9]+\.(?:png|jpg|jpeg|gif))\[\/img\]/i', '<br><img src="$1" style="max-width:100%; border-radius:5px; margin-top:5px;">', $m);
-    $m = preg_replace('/\[file\](uploads\/[a-z0-9]+\.[a-z0-9]+)\[\/file\]/i', '<br><a href="$1" style="display:inline-block; background:#eee; padding:4px; border:1px solid #777; text-decoration:none; color:#333; font-size:10px;">📁 Файл</a>', $m);
+    $m = preg_replace('/\[file\](uploads\/[a-z0-9]+\.[a-z0-9]+)\[\/file\]/i', '<br><a href="$1" style="display:inline-block; background:#eee; padding:4px; border:1px solid #777; text-decoration:none; color:#333; font-size:10px;">Файл</a>', $m);
     return nl2br($m);
 }
 
@@ -363,9 +363,11 @@ if($myU && isset($_POST['send_msg'])){
 <html>
 <head>
     <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>мессенджер CrossEra | Связь со мной</title>
+    <title>CrossEra Messenger</title>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
+        html, body { height:100%; width:100%; }
+        
         body.theme-light { background:#fdf6e3; color:#657b83; }
         body.theme-light .box { background:#eee8d5; color:#073642; }
         body.theme-light #chat, body.theme-light .main-panel { background:#fdf6e3; color:#586e75; }
@@ -380,32 +382,39 @@ if($myU && isset($_POST['send_msg'])){
         body.theme-dark textarea, body.theme-dark input[type="text"] { background:#073642; color:#eee; border:1px solid #586e75; }
         
         body { font-family:sans-serif; font-size:12px; }
-        html, body, .box { height:100%; width:100%; }
-        .box { display:flex; flex-direction:column; overflow:hidden; }
-        .hdr { background:#a01ae8; color:white; padding:10px; font-weight:bold; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
-        .nav { background:#93a1a1; padding:5px; display:flex; flex-wrap:wrap; gap:3px; border-bottom:1px solid #586e75; flex-shrink:0; }
+        
+        /* Классическое блочное позиционирование для стабильного скролла на ретро-ОС */
+        .box { width:100%; min-height:100%; display:block; position:relative; }
+        .hdr { background:#a01ae8; color:white; padding:10px; font-weight:bold; }
+        .nav { background:#93a1a1; padding:5px; border-bottom:1px solid #586e75; }
         body.theme-dark .nav { background:#073642; border-bottom:1px solid #586e75; }
-        .nav a { background:#eee; color:#000; text-decoration:none; padding:4px 8px; font-size:10px; border:1px solid #666; border-radius:3px; }
+        .nav a { background:#eee; color:#000; text-decoration:none; padding:4px 8px; font-size:10px; border:1px solid #666; border-radius:3px; display:inline-block; margin:2px 1px; }
         .nav a.active { background:#2aa198; color:white; }
-        .content { flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0; }
-        #chat, .main-panel { flex:1; overflow-y:auto; padding:10px; }
+        
+        .content { width:100%; display:block; padding-bottom:120px; } 
+        #chat, .main-panel { padding:10px; display:block; }
+        
         .m { padding:8px 0; position:relative; }
         .btn { background:#2aa198; color:white; border:none; padding:4px 10px; cursor:pointer; text-decoration:none; font-size:11px; border-radius:3px; display:inline-block; }
         .mod-card { padding:10px; margin-bottom:8px; border-radius:5px; position:relative; }
-        .reac-bar { margin-left:29px; margin-top:4px; display:flex; gap:3px; align-items:center; }
-        .reac-btn { background:#f0f0f0; border:1px solid #ccc; border-radius:10px; padding:1px 4px; font-size:9px; text-decoration:none; color:#333; }
+        .reac-bar { margin-left:29px; margin-top:4px; display:block; }
+        .reac-btn { background:#f0f0f0; border:1px solid #ccc; border-radius:10px; padding:1px 4px; font-size:9px; text-decoration:none; color:#333; display:inline-block; margin-right:3px; }
         body.theme-dark .reac-btn { background:#2a2a2a; border:1px solid #444; color:#ccc; }
         .reac-menu { display:none; position:absolute; background:white; border:1px solid #333; padding:5px; z-index:10; border-radius:5px; bottom:20px; }
         body.theme-dark .reac-menu { background:#222; border-color:#555; }
         .err-msg { background:#dc322f; color:white; padding:8px; margin-bottom:10px; text-align:center; font-weight:bold; }
-        .fast-reply { background:#eee; border:1px solid #ccc; padding:2px 5px; font-size:10px; text-decoration:none; color:#000; border-radius:3px; }
+        .fast-reply { background:#eee; border:1px solid #ccc; padding:2px 5px; font-size:10px; text-decoration:none; color:#000; border-radius:3px; display:inline-block; }
         body.theme-dark .fast-reply { background:#333; border-color:#555; color:#fff; }
+        
+        /* Фиксированная форма отправки снизу экрана */
+        .chat-form-fixed { position:fixed; bottom:0; left:0; width:100%; background:#eee; border-top:1px solid #ccc; padding:6px; z-index:100; }
+        body.theme-dark .chat-form-fixed { background:#002b36; border-top:1px solid #586e75; }
     </style>
 </head>
 <body class="theme-<?php echo $theme; ?>">
 <div class="box">
     <?php if(!$myU): ?>
-        <div class="hdr"><span>Вход/регистрация в CrossEra</span></div>
+        <div class="hdr"><span>Вход и регистрация в CrossEra</span></div>
         <div class="main-panel">
             <?php if(isset($_SESSION['ce_error'])): echo "<div class='err-msg'>".$_SESSION['ce_error']."</div>"; unset($_SESSION['ce_error']); endif; ?>
             <form method="POST" style="max-width:300px; margin:20px auto;">
@@ -420,28 +429,29 @@ if($myU && isset($_POST['send_msg'])){
             <a href="?view=profile&uid=<?php echo $myU; ?>" style="color:white; text-decoration:none;">
                 <?php echo get_avatar_html($myU, $myN); ?> <span><?php echo $myN; ?></span>
             </a>
-            <div>
-                <a href="?view=search" style="color:white; margin-right:10px; text-decoration:none;">🔍 Поиск</a>
+            <div style="float:right;">
+                <a href="?view=search" style="color:white; margin-right:10px; text-decoration:none;">Поиск</a>
                 <a href="?logout=1" style="color:white; font-size:10px;">[Выход]</a>
             </div>
+            <div style="clear:both;"></div>
         </div>
 
         <div class="nav">
             <a href="?view=chat&to=all" class="<?php echo ($view=='chat'&&$to=='all')?'active':''; ?>">Общий Чат</a>
             <a href="?view=groups" class="<?php echo ($view=='groups'||strpos($to,'group_')===0||strpos($to,'gb_')===0)?'active':''; ?>">Группы/Каналы</a>
             <a href="?view=contacts" class="<?php echo ($view=='contacts')?'active':''; ?>">Контакты</a>
-            <a href="?view=chat&to=saved" class="<?php echo ($view=='chat'&&$to=='saved_'.$myU)?'active':''; ?>">Избр.</a>
-            <a href="?view=mods_page" class="<?php echo ($view=='mods_page'||$view=='edit_mod'||$view=='run_mod'||$view=='dev_info')?'active':''; ?>">🧱 Модули</a>
-            <a href="?view=digest" class="<?php echo ($view=='digest')?'active':''; ?>">⚡ Дайджест</a>
+            <a href="?view=chat&to=saved" class="<?php echo ($view=='chat'&&$to=='saved_'.$myU)?'active':''; ?>">Избранное</a>
+            <a href="?view=mods_page" class="<?php echo ($view=='mods_page'||$view=='edit_mod'||$view=='run_mod'||$view=='dev_info')?'active':''; ?>">Модули</a>
+            <a href="?view=digest" class="<?php echo ($view=='digest')?'active':''; ?>">Дайджест</a>
             <a href="?view=profile&uid=<?php echo $myU; ?>" class="<?php echo ($view=='profile'&&($_GET['uid']??'')==$myU)?'active':''; ?>">Инфо</a>
-            <a href="?view=eula" class="<?php echo ($view=='eula')?'active':''; ?>">📜 EULA</a>
-            <a href="?view=license" class="<?php echo ($view=='license')?'active':''; ?>">📄 Лицензия</a>
+            <a href="?view=eula" class="<?php echo ($view=='eula')?'active':''; ?>">EULA</a>
+            <a href="?view=license" class="<?php echo ($view=='license')?'active':''; ?>">Лицензия</a>
         </div>
 
         <div class="content">
             <?php if($view == 'digest'): ?>
                 <div class="main-panel">
-                    <h3>⚡ Текстовый дайджест обновлений</h3><br>
+                    <h3>Текстовый дайджест обновлений</h3><br>
                     
                     <?php 
                     if(file_exists($reqF)):
@@ -453,7 +463,7 @@ if($myU && isset($_POST['send_msg'])){
                                 $from_name = htmlspecialchars($d[2] ?? $d[0]);
                     ?>
                                 <div class="mod-card" style="background:#b58900; color:white; border:none;">
-                                    пользователь <b><?php echo $from_name; ?></b> (@<?php echo $from_id; ?>) хочет добавить вас в контакты.
+                                    Пользователь <b><?php echo $from_name; ?></b> (@<?php echo $from_id; ?>) хочет добавить вас в контакты.
                                     <div style="margin-top:5px;">
                                         <a href="?req_action=accept&from_uid=<?php echo $from_id; ?>" class="btn" style="background:#2aa198;">Принять</a>
                                         <a href="?req_action=reject&from_uid=<?php echo $from_id; ?>" class="btn" style="background:#dc322f;">Отклонить</a>
@@ -483,9 +493,10 @@ if($myU && isset($_POST['send_msg'])){
 
             <?php elseif($view == 'mods_page'): ?>
                 <div class="main-panel">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                        <h3>Репозиторий модулей</h3>
-                        <a href="?view=dev_info" class="btn" style="background:#586e75; font-size:10px;">Для разработчиков</a>
+                    <div style="margin-bottom:10px;">
+                        <h3 style="display:inline-block;">Репозиторий модулей</h3>
+                        <a href="?view=dev_info" class="btn" style="background:#586e75; font-size:10px; float:right;">Для разработчиков</a>
+                        <div style="clear:both;"></div>
                     </div>
                     <p style="font-size:10px; opacity:0.7; margin-bottom:10px;">Автономные расширения системы из каталога.</p>
                     <?php 
@@ -585,7 +596,7 @@ if (isset($_POST['my_action'])) {
             <?php elseif($view == 'license'): ?>
                 <div class="main-panel">
                     <h3>Лицензия исходного кода (MIT License)</h3><br>
-                    <textarea style="width:100%; height:280px; font-family:monospace; font-size:10px; padding:8px; line-height:1.4;" readonly>Copyright (c) <?php echo date('Y'); ?> Impisre-software
+                    <textarea style="width:100%; height:280px; font-family:monospace; font-size:10px; padding:8px; line-height:1.4;" readonly>Copyright (c) <?php echo date('Y'); ?> CrossEra Engine
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -629,7 +640,7 @@ SOFTWARE.</textarea>
                     $mName = preg_replace('/[^a-z0-9_\-]/i', '', $_GET['name'] ?? '');
                     $mPath = $modDir . $mName . ".php";
                     if(file_exists($mPath)): ?>
-                        <h3> Код модуля: <?php echo htmlspecialchars($mName); ?>.php</h3><br>
+                        <h3>Код модуля: <?php echo htmlspecialchars($mName); ?>.php</h3><br>
                         <textarea style="width:100%; height:280px; font-family:monospace; font-size:11px; padding:5px;" readonly><?php echo htmlspecialchars(file_get_contents($mPath)); ?></textarea><br><br>
                         <a href="?view=mods_page" class="btn" style="background:#586e75;">Назад к списку</a>
                     <?php else: echo "Модуль не найден."; endif; ?>
@@ -637,7 +648,7 @@ SOFTWARE.</textarea>
 
             <?php elseif($view == 'search'): ?>
                 <div class="main-panel">
-                    <h3> Поиск по всей платформе</h3><br>
+                    <h3>Поиск по всей платформе</h3><br>
                     <form method="GET" style="margin-bottom:15px;">
                         <input type="hidden" name="view" value="search">
                         <input type="text" name="q" value="<?php echo htmlspecialchars($_GET['q']??''); ?>" placeholder="Что искать?" style="padding:5px; width:70%;">
@@ -725,7 +736,7 @@ SOFTWARE.</textarea>
 
             <?php elseif($view == 'edit'): ?>
                 <div class="main-panel">
-                    <h3> Редактирование сообщения</h3><br>
+                    <h3>Редактирование сообщения</h3><br>
                     <?php 
                     $mid = preg_replace('/[^a-z0-9]/', '', $_GET['mid'] ?? '');
                     $old_text = '';
@@ -797,9 +808,10 @@ SOFTWARE.</textarea>
                 }
                 $isGuestbook = (strpos($to, 'gb_') === 0);
                 ?>
-                <div style="background:rgba(0,0,0,0.02); padding:5px 10px; font-size:10px; display:flex; justify-content:space-between; flex-shrink:0;">
+                <div style="background:rgba(0,0,0,0.02); padding:5px 10px; font-size:10px; margin-bottom: 5px;">
                     <span>Комната: <b><?php echo $to; ?></b> <?php if($isChannel) echo "(Публичный Канал)"; if($isGuestbook) echo "(Гостевая книга)"; ?></span>
-                    <a href="?export_txt=1&to=<?php echo $to; ?>" style="color:#2aa198; text-decoration:none;"> Скачать (.TXT)</a>
+                    <a href="?export_txt=1&to=<?php echo $to; ?>" style="color:#2aa198; text-decoration:none; float:right;">Скачать (.TXT)</a>
+                    <div style="clear:both;"></div>
                 </div>
 
                 <div id="chat">
@@ -818,21 +830,21 @@ SOFTWARE.</textarea>
                                 <?php echo get_avatar_html($uid, $d[0]); ?>
                                 <a href="?view=profile&uid=<?php echo $uid; ?>" style="text-decoration:none; color:inherit;"><b><?php echo $d[0]; ?></b></a>
                                 
-                                <small style="float:right; opacity:0.5;">
+                                <span style="float:right; opacity:0.5; font-size:10px;">
                                     <?php echo htmlspecialchars($d[2]); ?> <?php if($isEdited) echo "<i>(ред.)</i>"; ?>
                                     <?php if($uid == $myU && $plainMsg !== "[Сообщение удалено]"): ?>
                                         <a href="?view=edit&mid=<?php echo $msgID; ?>&to=<?php echo $to; ?>" style="color:#b58900; text-decoration:none; margin-left:5px;">[ред]</a>
                                     <?php endif; ?>
                                     <?php if(($uid == $myU || $myU == $adminID) && $plainMsg !== "[Сообщение удалено]"): ?>
-                                        <a href="?del_msg=<?php echo $msgID; ?>&to=<?php echo $to; ?>" style="color:#dc322f; text-decoration:none; margin-left:5px;">[×]</a>
+                                        <a href="?del_msg=<?php echo $msgID; ?>&to=<?php echo $to; ?>" style="color:#dc322f; text-decoration:none; margin-left:5px;">[x]</a>
                                     <?php endif; ?>
-                                </small><br>
+                                </span><br>
                                 
                                 <div style="margin-left:29px; margin-top:3px; font-size:13px;"><?php echo parse_msg($plainMsg); ?></div>
                                 
                                 <?php if($isChannel && !$isGuestbook): ?>
                                     <div style="margin-left:29px; margin-top:4px;">
-                                        <a href="?view=chat&to=gb_<?php echo $msgID; ?>" style="font-size:10px; color:#2aa198; text-decoration:none;">💬 Гостевая книга (Отзывы)</a>
+                                        <a href="?view=chat&to=gb_<?php echo $msgID; ?>" style="font-size:10px; color:#2aa198; text-decoration:none;">Гостевая книга (Отзывы)</a>
                                     </div>
                                 <?php endif; ?>
 
@@ -857,7 +869,7 @@ SOFTWARE.</textarea>
                                     <a href="#" onclick="document.getElementById('rm<?php echo $idx;?>').style.display='block'; return false;" class="reac-btn">+</a>
                                     <div id="rm<?php echo $idx;?>" class="reac-menu">
                                         <?php foreach(['fire.gif','smile.gif','good.gif','heart.gif'] as $t) echo "<a href='?add_reac=1&mid=$msgID&type=$t&to=$to'><img src='smiles/$t' width='16'></a> "; ?>
-                                        <a href="#" onclick="this.parentElement.style.display='none'; return false;" style="color:red;">&times;</a>
+                                        <a href="#" onclick="this.parentElement.style.display='none'; return false;" style="color:red; text-decoration:none;">[x]</a>
                                     </div>
                                 </div>
                             </div>
@@ -868,23 +880,21 @@ SOFTWARE.</textarea>
                 </div>
 
                 <?php if(!$isChannel || $channelOwner == $myU || $isGuestbook): ?>
-                    <form method="POST" enctype="multipart/form-data" style="padding:6px; background:rgba(0,0,0,0.05); border-top:1px solid rgba(0,0,0,0.1); flex-shrink:0;">
-                        <div style="margin-bottom:5px; display:flex; gap:4px; flex-wrap:wrap;">
-                            <span style="font-size:9px; align-self:center; opacity:0.6;">Быстро:</span>
+                    <form method="POST" enctype="multipart/form-data" class="chat-form-fixed">
+                        <div style="margin-bottom:5px;">
+                            <span style="font-size:9px; opacity:0.6;">Быстро:</span>
                             <a href="#" class="fast-reply" onclick="document.getElementsByName('msg')[0].value+='Да'; return false;">Да</a>
                             <a href="#" class="fast-reply" onclick="document.getElementsByName('msg')[0].value+='Нет'; return false;">Нет</a>
                             <a href="#" class="fast-reply" onclick="document.getElementsByName('msg')[0].value+='Ок'; return false;">Ок</a>
-                            <a href="#" class="fast-reply" onclick="document.getElementsByName('msg')[0].value+='(ツ)'; return false;">(ツ)</a>
-                            <a href="#" class="fast-reply" onclick="document.getElementsByName('msg')[0].value+='¯\\_(ツ)_/¯'; return false;">¯\_(ツ)_/¯</a>
                         </div>
-                        <textarea name="msg" style="width:100%; height:40px; border-radius:3px; padding:4px;" placeholder="Ваше сообщение..."></textarea>
-                        <div style="margin-top:4px; display:flex; justify-content:space-between; align-items:center;">
-                            <input type="file" name="f" style="font-size:10px; width:65%;">
-                            <input type="submit" name="send_msg" value=">>" class="btn" style="padding:4px 15px;">
+                        <textarea name="msg" style="width:100%; height:35px; border-radius:3px; padding:4px;" placeholder="Ваше сообщение..."></textarea>
+                        <div style="margin-top:4px;">
+                            <input type="file" name="f" style="font-size:10px; width:60%;">
+                            <input type="submit" name="send_msg" value="&gt;&gt;" class="btn" style="padding:3px 12px; float:right;">
                         </div>
                     </form>
                 <?php else: ?>
-                    <div style="padding:10px; text-align:center; background:#eee; font-size:11px; color:#666;">Это канал. Писать сюда может только создатель.</div>
+                    <div class="chat-form-fixed" style="text-align:center; font-size:11px; color:#666; padding:10px;">Это канал. Писать сюда может только создатель.</div>
                 <?php endif; ?>
             <?php endif; ?>
         </div>
