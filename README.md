@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-S60v5%20%7C%20WM6.1%20%7C%20XP%20%7C%20Web-success)]()
 
-**Кросс-платформенный защищённый веб-мессенджер**  
+**Кросс-платформенный веб-мессенджер**  
 Работает на **Symbian S60v5, Windows Mobile 6.1, Windows XP** и любых современных устройствах с браузером.
 
 👉 **[Попробовать демо](https://club2000.atwebpages.com)** 👈
