@@ -223,7 +223,7 @@ if(isset($_POST['edit_msg']) && $myU) {
 
 // РЕАКЦИИ
 if(isset($_GET['add_reac']) && $myU) {
-    $mid = preg_replace('/[^a-z0-9]/', '', $_GET['mid']); 
+    $mid = preg_replace('/[^a-z0-9]/', '', $_GET['add_reac']); 
     $type = preg_replace('/[^a-z0-9\.]/', '', $_GET['type']); 
     $rf = $reacDir . $mid . ".db.php";
     $already = false;
@@ -363,7 +363,7 @@ if($myU && isset($_POST['send_msg'])){
 <html>
 <head>
     <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CrossEra Hybrid</title>
+    <title>мессенджер CrossEra | Связь со мной</title>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body.theme-light { background:#fdf6e3; color:#657b83; }
@@ -405,7 +405,7 @@ if($myU && isset($_POST['send_msg'])){
 <body class="theme-<?php echo $theme; ?>">
 <div class="box">
     <?php if(!$myU): ?>
-        <div class="hdr"><span>Вход в CrossEra</span></div>
+        <div class="hdr"><span>Вход/регистрация в CrossEra</span></div>
         <div class="main-panel">
             <?php if(isset($_SESSION['ce_error'])): echo "<div class='err-msg'>".$_SESSION['ce_error']."</div>"; unset($_SESSION['ce_error']); endif; ?>
             <form method="POST" style="max-width:300px; margin:20px auto;">
@@ -431,9 +431,11 @@ if($myU && isset($_POST['send_msg'])){
             <a href="?view=groups" class="<?php echo ($view=='groups'||strpos($to,'group_')===0||strpos($to,'gb_')===0)?'active':''; ?>">Группы/Каналы</a>
             <a href="?view=contacts" class="<?php echo ($view=='contacts')?'active':''; ?>">Контакты</a>
             <a href="?view=chat&to=saved" class="<?php echo ($view=='chat'&&$to=='saved_'.$myU)?'active':''; ?>">Избр.</a>
-            <a href="?view=mods_page" class="<?php echo ($view=='mods_page'||$view=='edit_mod'||$view=='run_mod')?'active':''; ?>">🧱 Модули</a>
+            <a href="?view=mods_page" class="<?php echo ($view=='mods_page'||$view=='edit_mod'||$view=='run_mod'||$view=='dev_info')?'active':''; ?>">🧱 Модули</a>
             <a href="?view=digest" class="<?php echo ($view=='digest')?'active':''; ?>">⚡ Дайджест</a>
             <a href="?view=profile&uid=<?php echo $myU; ?>" class="<?php echo ($view=='profile'&&($_GET['uid']??'')==$myU)?'active':''; ?>">Инфо</a>
+            <a href="?view=eula" class="<?php echo ($view=='eula')?'active':''; ?>">📜 EULA</a>
+            <a href="?view=license" class="<?php echo ($view=='license')?'active':''; ?>">📄 Лицензия</a>
         </div>
 
         <div class="content">
@@ -451,7 +453,7 @@ if($myU && isset($_POST['send_msg'])){
                                 $from_name = htmlspecialchars($d[2] ?? $d[0]);
                     ?>
                                 <div class="mod-card" style="background:#b58900; color:white; border:none;">
-                                    🔔 <b><?php echo $from_name; ?></b> (@<?php echo $from_id; ?>) хочет добавить вас в контакты.
+                                    пользователь <b><?php echo $from_name; ?></b> (@<?php echo $from_id; ?>) хочет добавить вас в контакты.
                                     <div style="margin-top:5px;">
                                         <a href="?req_action=accept&from_uid=<?php echo $from_id; ?>" class="btn" style="background:#2aa198;">Принять</a>
                                         <a href="?req_action=reject&from_uid=<?php echo $from_id; ?>" class="btn" style="background:#dc322f;">Отклонить</a>
@@ -481,8 +483,11 @@ if($myU && isset($_POST['send_msg'])){
 
             <?php elseif($view == 'mods_page'): ?>
                 <div class="main-panel">
-                    <h3>🧱 Репозиторий WAP-модулей</h3>
-                    <p style="font-size:10px; opacity:0.7; margin-bottom:10px;">Автономные расширения системы из каталога /mods/.</p>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <h3>Репозиторий модулей</h3>
+                        <a href="?view=dev_info" class="btn" style="background:#586e75; font-size:10px;">Для разработчиков</a>
+                    </div>
+                    <p style="font-size:10px; opacity:0.7; margin-bottom:10px;">Автономные расширения системы из каталога.</p>
                     <?php 
                     $modFiles = glob($modDir . "*.php");
                     if(!empty($modFiles)):
@@ -490,7 +495,7 @@ if($myU && isset($_POST['send_msg'])){
                             $modName = basename($mf, ".php");
                     ?>
                             <div class="mod-card">
-                                <b>📁 Модуль: <?php echo htmlspecialchars($modName); ?></b><br>
+                                <b>Модуль: <?php echo htmlspecialchars($modName); ?></b><br>
                                 <small style="opacity:0.6;">Путь: <?php echo htmlspecialchars($mf); ?></small>
                                 <div style="margin-top:8px;">
                                     <a href="?view=run_mod&name=<?php echo urlencode($modName); ?>" class="btn">Запустить</a>
@@ -501,10 +506,108 @@ if($myU && isset($_POST['send_msg'])){
                         endforeach;
                     else: 
                         echo "<div class='mod-card' style='text-align:center; padding:20px; color:#777;'>";
-                        echo "Папка <b>/mods/</b> пуста.<br>Поместите туда автономные PHP-скрипты.";
+                        echo "Папка <b>/mods/</b> пуста.<br>Отправьте готовый модуль на mindindevin@gmail.com";
                         echo "</div>";
                     endif; 
                     ?>
+                </div>
+
+            <?php elseif($view == 'dev_info'): ?>
+                <div class="main-panel">
+                    <h3>Документация разработчика модулей</h3><br>
+                    <div class="mod-card" style="background:rgba(0,0,0,0.03); font-size:11px; line-height:1.5;">
+                        <p>Для публикации вашего плагина в репозитории отправьте готовый скрипт на почту: <b>mindindevin@gmail.com</b></p>
+                    </div>
+                    <br>
+                    <textarea style="width:100%; height:320px; font-family:monospace; font-size:10px; padding:8px; line-height:1.4;" readonly>Разработка расширений для платформы CrossEra Engine.
+
+1. Архитектура интеграции
+Все модули должны размещаться в директории /mods/
+Ядро index.php подключает модуль, если передан параметр ?view=run_mod&name=имя_файла.
+Исполнение происходит внутри контекста основного движка, поэтому внутри файла модуля доступны:
+- Настройки и конфигурация (например, ключ $crypto_key).
+- Сессии авторизованного пользователя ($_SESSION['ce_uid'], $_SESSION['ce_nick']).
+- Системные функции для работы с файлами баз данных (например, db_append()).
+
+2. Основные правила разработки (Стандарт CrossEra)
+
+Правило 1: Отсутствие глобальных HTML-тегов
+Так как ядро самостоятельно рендерит doctype, теги html, head и body, внутри файла модуля запрещено дублировать эти элементы. Модуль должен содержать только изолированную разметку (div, form, table).
+
+Правило 2: Правильная адресация форм и ссылок
+При использовании POST-форм или ссылок необходимо сохранять GET-параметры ядра, иначе контекст модуля потеряется.
+Пример динамического формирования URL:
+$currentModName = preg_replace('/[^a-z0-9_\-]/i', '', $_GET['name'] ?? 'my_mod');
+$modUrl = "?view=run_mod&name=" . urlencode($currentModName);
+Переменную $modUrl необходимо использовать во всех атрибутах action и href.
+
+Правило 3: Безопасный Post-Redirect-Get (PRG)
+Для предотвращения повторной отправки данных при обновлении страницы в прокси-браузерах (Opera Mini) после обработки любого $_POST запроса обязательно выполняйте редирект на адрес модуля и завершайте скрипт:
+if (isset($_POST['my_action'])) {
+    // Обработка данных
+    header("Location: " . $modUrl);
+    exit;
+}
+
+Правило 4: Изоляция CSS-стилей
+Оборачивайте всю верстку модуля в уникальный CSS-контейнер, чтобы стили не нарушали отображение основного интерфейса мессенджера.
+Неправильно: .btn { color: red; } (перезапишет стиль кнопок чата).
+Правильно: .my-mod-container .mod-btn { color: red; }
+
+3. Ограничения для старых платформ
+- Сессии: Мобильные прокси-браузеры могут кэшировать сессии по IP. Проверяйте статус сессии через session_status().
+- JavaScript: Интерфейсы CrossEra должны сохранять полную работоспособность при отключенном JavaScript. Логика модулей обязана обрабатываться на стороне PHP. Использование JS допускается только для декоративных улучшений на современных устройствах.
+- Объем данных: Оптимальный объем генерируемой модулем страницы — в пределах 60-100 Кб.</textarea>
+                    <br><br>
+                    <a href="?view=mods_page" class="btn" style="background:#586e75;">Назад к репозиторию</a>
+                </div>
+
+            <?php elseif($view == 'eula'): ?>
+                <div class="main-panel">
+                    <h3>Лицензионное соглашение (EULA)</h3><br>
+                    <div class="mod-card" style="line-height:1.6; font-size:11px; text-align:justify;">
+                        <b>1. Общие положения</b><br>
+                        Используя мессенджер CrossEra, вы соглашаетесь с условиями настоящего лицензионного соглашения. Если вы не согласны с условиями, прекратите использование платформы.<br><br>
+                        
+                        <b>2. Правила использования и контент</b><br>
+                        Пользователь несет полную ответственность за передаваемую информацию, текстовые сообщения и медиафайлы. Запрещено использование платформы для распространения вредоносного ПО, спама, оскорблений, нарушений законодательства, а также любого контента, нарушающего права третьих лиц.<br><br>
+                        
+                        <b>3. Отказ от гарантий (As Is)</b><br>
+                        Программное обеспечение предоставляется по принципу "как есть" (As Is). Разработчик не несет ответственности за любые сбои в работе движка, потерю данных, сессий или кэша прокси-браузеров, а также за временную недоступность сервиса на оконечных устройствах пользователя.<br><br>
+                        
+                        <b>4. Конфиденциальность и безопасность</b><br>
+                        Платформа использует встроенные механизмы криптографического шифрования для защиты сообщений (AES-128-CTR). Тем не менее, пользователь самостоятельно отвечает за надежность своего пароля. Администрация не имеет доступа к утерянным паролям ввиду их необратимого хеширования (password_hash).<br><br>
+                        
+                        <small style="opacity:0.6;">Редакция соглашения от: <?php echo date('Y-m-d'); ?>. Платформа CrossEra Engine.</small>
+                    </div>
+                </div>
+
+            <?php elseif($view == 'license'): ?>
+                <div class="main-panel">
+                    <h3>Лицензия исходного кода (MIT License)</h3><br>
+                    <textarea style="width:100%; height:280px; font-family:monospace; font-size:10px; padding:8px; line-height:1.4;" readonly>Copyright (c) <?php echo date('Y'); ?> Impisre-software
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.</textarea>
+                    <br><br>
+                    <div class="mod-card" style="font-size:11px;">
+                        <b>Примечание:</b> Данная лицензия распространяется на исходный код движка мессенджера и позволяет свободно модифицировать, копировать и создавать форки проекта.
+                    </div>
                 </div>
 
             <?php elseif($view == 'run_mod'): ?>
@@ -526,7 +629,7 @@ if($myU && isset($_POST['send_msg'])){
                     $mName = preg_replace('/[^a-z0-9_\-]/i', '', $_GET['name'] ?? '');
                     $mPath = $modDir . $mName . ".php";
                     if(file_exists($mPath)): ?>
-                        <h3>📄 Код модуля: <?php echo htmlspecialchars($mName); ?>.php</h3><br>
+                        <h3> Код модуля: <?php echo htmlspecialchars($mName); ?>.php</h3><br>
                         <textarea style="width:100%; height:280px; font-family:monospace; font-size:11px; padding:5px;" readonly><?php echo htmlspecialchars(file_get_contents($mPath)); ?></textarea><br><br>
                         <a href="?view=mods_page" class="btn" style="background:#586e75;">Назад к списку</a>
                     <?php else: echo "Модуль не найден."; endif; ?>
@@ -534,7 +637,7 @@ if($myU && isset($_POST['send_msg'])){
 
             <?php elseif($view == 'search'): ?>
                 <div class="main-panel">
-                    <h3>🔍 Поиск по всей платформе</h3><br>
+                    <h3> Поиск по всей платформе</h3><br>
                     <form method="GET" style="margin-bottom:15px;">
                         <input type="hidden" name="view" value="search">
                         <input type="text" name="q" value="<?php echo htmlspecialchars($_GET['q']??''); ?>" placeholder="Что искать?" style="padding:5px; width:70%;">
@@ -568,7 +671,7 @@ if($myU && isset($_POST['send_msg'])){
                         echo "<br><b>Сообщения из общего чата:</b><br>";
                         if(file_exists($rDir."global.db.php")) {
                             foreach(file($rDir."global.db.php") as $l) {
-                                if(strpos($l, '<?php')!==false) continue;
+                                if(strpos($l, '<?php') !== false) continue;
                                 $d = explode('|', trim($l));
                                 $msg = v_crypt($d[1]??'', $crypto_key, 'dec');
                                 if(strpos(strtolower($msg), $q)!==false) {
@@ -622,7 +725,7 @@ if($myU && isset($_POST['send_msg'])){
 
             <?php elseif($view == 'edit'): ?>
                 <div class="main-panel">
-                    <h3>✏️ Редактирование сообщения</h3><br>
+                    <h3> Редактирование сообщения</h3><br>
                     <?php 
                     $mid = preg_replace('/[^a-z0-9]/', '', $_GET['mid'] ?? '');
                     $old_text = '';
@@ -696,7 +799,7 @@ if($myU && isset($_POST['send_msg'])){
                 ?>
                 <div style="background:rgba(0,0,0,0.02); padding:5px 10px; font-size:10px; display:flex; justify-content:space-between; flex-shrink:0;">
                     <span>Комната: <b><?php echo $to; ?></b> <?php if($isChannel) echo "(Публичный Канал)"; if($isGuestbook) echo "(Гостевая книга)"; ?></span>
-                    <a href="?export_txt=1&to=<?php echo $to; ?>" style="color:#2aa198; text-decoration:none;">💾 Скачать (.TXT)</a>
+                    <a href="?export_txt=1&to=<?php echo $to; ?>" style="color:#2aa198; text-decoration:none;"> Скачать (.TXT)</a>
                 </div>
 
                 <div id="chat">
