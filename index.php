@@ -596,7 +596,7 @@ if (isset($_POST['my_action'])) {
             <?php elseif($view == 'license'): ?>
                 <div class="main-panel">
                     <h3>Лицензия исходного кода (MIT License)</h3><br>
-                    <textarea style="width:100%; height:280px; font-family:monospace; font-size:10px; padding:8px; line-height:1.4;" readonly>Copyright (c) <?php echo date('Y'); ?> CrossEra Engine
+                    <textarea style="width:100%; height:280px; font-family:monospace; font-size:10px; padding:8px; line-height:1.4;" readonly>Copyright (c) <?php echo date('Y'); ?> Impisre Software
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
