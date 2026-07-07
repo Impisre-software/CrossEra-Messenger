@@ -38,16 +38,165 @@ CrossEra — **единственный** мессенджер, который �
 
 Модули — это «боты» с **собственным интерфейсом** (кнопки, формы, динамическая отрисовка).
 
-Пример модуля погоды:
-```php
-function mod_weather_main($user, $admin) {
-    echo "<div class='mod-card'>";
-    echo "<h3>Погода</h3>";
-    echo "<form method=POST><input name=city><button>Узнать</button></form>";
-    if(isset($_POST['city'])) echo "Температура: +22°C";
-    echo "</div>";
+Пример модуля каклькулятора:
+<?php
+// Стартуем сессию, если модуль вызван напрямую, а не из ядра
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
 }
 
+// Мета-данные для интеграции (если решишь читать их движком)
+$mod_info = [
+    'name' => 'Calc Lite',
+    'version' => '1.0',
+    'description' => 'Легкий калькулятор для старых браузеров',
+    'compatibility' => 'Opera Mini 8+'
+];
+
+// 1. СБОРНАЯ ОБРАБОТКА POST ЗАПРОСОВ (До вывода HTML)
+if(isset($_POST['calc_action'])) {
+    $display = $_POST['display'] ?? '0';
+    $action = $_POST['calc_action'];
+    
+    switch($action) {
+        case 'clear':
+            $display = '0';
+            break;
+        case 'backspace':
+            $display = strlen($display) > 1 ? substr($display, 0, -1) : '0';
+            break;
+        case 'sqrt':
+            $val = floatval($display);
+            $display = $val >= 0 ? sqrt($val) : 'Ошибка';
+            break;
+        case '%':
+            $display = floatval($display) / 100;
+            break;
+        case '^':
+            // Если в дисплее уже есть знак ^, вычисляем
+            if(strpos($display, '^') !== false) {
+                $parts = explode('^', $display);
+                if(count($parts) == 2) {
+                    $display = pow(floatval($parts[0]), floatval($parts[1]));
+                }
+            } else {
+                // Иначе просто дописываем знак степени
+                $display .= '^';
+            }
+            break;
+        case 'equals':
+            // Безопасное вычисление базовой арифметики
+            $expr = str_replace(['×', '÷'], ['*', '/'], $display);
+            $expr = preg_replace('/[^0-9+\-*\/\(\)\.]/', '', $expr);
+            if (!empty($expr)) {
+                @eval('$result = ' . $expr . ';');
+                $display = isset($result) && is_numeric($result) ? $result : 'Ошибка';
+            }
+            break;
+        default:
+            if(is_numeric($action) || $action === '.' || strpos('+-*/()', $action) !== false) {
+                if($display === '0' && is_numeric($action)) {
+                    $display = $action;
+                } else {
+                    $display .= $action;
+                }
+            }
+            break;
+    }
+    
+    if(strlen($display) > 30) $display = substr($display, 0, 30);
+    
+    $_SESSION['calc_display'] = $display;
+    
+    // Редирект на самого себя, чтобы не перегружать POST при обновлении страницы в Opera Mini
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+}
+
+// Получаем текущее значение дисплея
+$display = $_SESSION['calc_display'] ?? '0';
+if($display === '') $display = '0';
+?>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calc Lite</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #002b36; font-family: Arial, sans-serif; font-size: 14px; }
+        .calc-box { max-width: 350px; margin: 10px auto; background: #073642; border-radius: 5px; padding: 10px; }
+        .screen { background: #002b36; padding: 15px; margin-bottom: 15px; border-radius: 3px; text-align: right; word-break: break-all; }
+        .display { color: #93a1a1; font-size: 24px; font-family: 'Courier New', monospace; font-weight: bold; }
+        .calc-table { width: 100%; border-collapse: collapse; }
+        td.calc-btn { background: #002b36; border: 1px solid #073642; padding: 12px 5px; text-align: center; width: 20%; }
+        .btn, .btn-operator, .btn-equals, .btn-clear { 
+            width: 100%; background: #002b36; border: none; padding: 12px 5px; 
+            color: #839496; font-size: 16px; font-weight: bold; cursor: pointer; 
+        }
+        .btn-operator { background: #b58900; color: #fff; }
+        .btn-equals { background: #2aa198; color: #fff; }
+        .btn-clear { background: #dc322f; color: #fff; }
+        .info { text-align: center; color: #586e75; font-size: 11px; margin-top: 10px; padding: 5px; }
+        @media (max-width: 400px) {
+            .btn, .btn-operator, .btn-equals, .btn-clear { padding: 8px 3px; font-size: 14px; }
+            .display { font-size: 20px; }
+        }
+    </style>
+</head>
+<body>
+<div class="calc-box">
+    <form method="POST" action="">
+        <div class="screen">
+            <div class="display"><?php echo htmlspecialchars($display); ?></div>
+        </div>
+        
+        <input type="hidden" name="display" value="<?php echo htmlspecialchars($display); ?>">
+        
+        <table class="calc-table">
+            <tr>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="clear" class="btn-clear">C</button></td>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="backspace" class="btn">⌫</button></td>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="(" class="btn">(</button></td>
+                <td class="calc-btn"><button type="submit" name="calc_action" value=")" class="btn">)</button></td>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="/" class="btn-operator">÷</button></td>
+            </tr>
+            <tr>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="7" class="btn">7</button></td>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="8" class="btn">8</button></td>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="9" class="btn">9</button></td>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="*" class="btn-operator">×</button></td>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="sqrt" class="btn">√</button></td>
+            </tr>
+            <tr>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="4" class="btn">4</button></td>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="5" class="btn">5</button></td>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="6" class="btn">6</button></td>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="-" class="btn-operator">-</button></td>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="^" class="btn">^</button></td>
+            </tr>
+            <tr>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="1" class="btn">1</button></td>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="2" class="btn">2</button></td>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="3" class="btn">3</button></td>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="+" class="btn-operator">+</button></td>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="%" class="btn">%</button></td>
+            </tr>
+            <tr>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="0" class="btn">0</button></td>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="00" class="btn">00</button></td>
+                <td class="calc-btn"><button type="submit" name="calc_action" value="." class="btn">.</button></td>
+                <td class="calc-btn" colspan="2"><button type="submit" name="calc_action" value="equals" class="btn-equals">=</button></td>
+            </tr>
+        </table>
+    </form>
+    <div class="info">
+        Простой калькулятор | Работает без JavaScript
+    </div>
+</div>
+</body>
+</html>
 
 
 
