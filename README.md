@@ -22,6 +22,8 @@
 | **Расширяемость** | Модули с собственным UI (как боты Telegram) |
 | **Безопасность** | AES-128 шифрование сообщений на сервере |
 | **Интерфейс** | Светлая / тёмная тема |
+| **требования** |PC: OS: Windows 98, Internet Explorer 3, RAM 32MB, JS in don't needed, mobile: windows Mobile 2003, 32 mb RAM |
+
 
 ## Уникальность
 
@@ -29,9 +31,9 @@ CrossEra — **единственный** мессенджер, который �
 
 | Платформа | Браузер | Статус |
 |-----------|---------|--------|
-| Symbian S60v5 (Nokia 5800, N97) | WebKit S60 | ✅ Полная поддержка |
-| Windows Mobile 6.1 / 6.5 | Internet Explorer Mobile | ✅ Полная поддержка |
-| Windows XP | IE8 / Firefox / Chrome | ✅ Полная поддержка |
+| Symbian S60v3 (Nokia 5800, N97) | WebKit S60 | ✅ Полная поддержка |
+| Windows Mobile 2003| Internet Explorer Mobile | ✅ Полная поддержка |
+| Windows 98 | IE3 / ✅ Полная поддержка |
 | Современные ПК / смартфоны | Любой браузер | ✅ Полная поддержка |
 
 ## Модульная система
