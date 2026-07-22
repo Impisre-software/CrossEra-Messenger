@@ -5,7 +5,7 @@
 [![Platform](https://img.shields.io/badge/platform-S60v5%20%7C%20WM6.1%20%7C%20XP%20%7C%20Web-success)]()
 
 **Кросс-платформенный веб-мессенджер**  
-Работает на **Symbian S60v5, Windows Mobile 6.1, Windows XP** и любых современных устройствах с браузером.
+Работает на **Symbian (c S60v3), Windows Mobile 6.1, Windows XP** и любых современных устройствах с браузером.
 
 👉 **[Попробовать демо](https://club2000.atwebpages.com)** 👈
 
@@ -31,7 +31,7 @@ CrossEra — **единственный** мессенджер, который �
 
 | Платформа | Браузер | Статус |
 |-----------|---------|--------|
-| Symbian S60v3 (Nokia 5800, N97) | WebKit S60 | ✅ Полная поддержка |
+| Symbian (Nokia 5800, N97) | WebKit S60 | ✅ Полная поддержка |
 | Windows Mobile 2003| Internet Explorer Mobile | ✅ Полная поддержка |
 | Windows 98 | IE3 / ✅ Полная поддержка |
 | Современные ПК / смартфоны | Любой браузер | ✅ Полная поддержка |
