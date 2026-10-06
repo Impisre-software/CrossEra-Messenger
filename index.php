@@ -2,6 +2,55 @@
 ob_start();
 session_start();
 
+/* ---------- Реестр смайлов ---------- */
+$SMILE_PACK = [
+    ':smile:'      => ['img' => 'smile.gif',        'title' => 'Улыбка',      'reac' => true],
+    ':fire:'       => ['img' => 'fire.gif',         'title' => 'Огонь',       'reac' => true],
+    ':cool:'       => ['img' => 'good.gif',         'title' => 'Класс',       'reac' => true],
+    ':heart:'      => ['img' => 'heart.gif',        'title' => 'Сердце',      'reac' => true],
+    ':hi:'         => ['img' => 'hi.gif',           'title' => 'Привет',      'reac' => true],
+    ':sarcasm:'    => ['img' => 'sarcasm.gif',      'title' => 'Сарказм',     'reac' => true],
+    ':happy:'      => ['img' => 'happy_yes.gif',    'title' => 'Радость',     'reac' => true],
+    ':dance:'      => ['img' => 'happy_dancing.gif','title' => 'Танцую',      'reac' => true],
+    ':lol:'        => ['img' => 'haha.gif',         'title' => 'Смех',        'reac' => true],
+    ':rofl:'       => ['img' => 'rofl.gif',         'title' => 'Ржу',         'reac' => true],
+    ':yeah:'       => ['img' => 'Yeahh.gif',        'title' => 'Yeah!',       'reac' => true],
+    ':like:'       => ['img' => 'like.gif',         'title' => 'Like',        'reac' => true],
+    ':victory:'    => ['img' => 'victory.gif',      'title' => 'Победа',      'reac' => true],
+    ':party:'      => ['img' => 'santa2.gif',       'title' => 'Праздник',    'reac' => true],
+    ':cry:'        => ['img' => 'crying_girl.gif',  'title' => 'Плачу',       'reac' => true],
+    ':sorry:'      => ['img' => 'sorry.gif',        'title' => 'Прости',      'reac' => true],
+    ':sad:'        => ['img' => 'not_i.gif',        'title' => 'Не я',        'reac' => true],
+    ':angry:'      => ['img' => 'angry2.gif',       'title' => 'Злой',        'reac' => true],
+    ':angrypink:'  => ['img' => 'angrypink.gif',    'title' => 'Злая',        'reac' => true],
+    ':aggressive:' => ['img' => 'aggressive.gif',   'title' => 'Агрессия',    'reac' => true],
+    ':shout:'      => ['img' => 'shout.gif',        'title' => 'Крик',        'reac' => true],
+    ':stop:'       => ['img' => 'stop.gif',         'title' => 'Стоп',        'reac' => true],
+    ':no:'         => ['img' => 'no.gif',           'title' => 'Нет',         'reac' => true],
+    ':nono:'       => ['img' => 'nono.gif',         'title' => 'Не-не',       'reac' => true],
+    ':skull:'      => ['img' => 'skull.gif',        'title' => 'Череп',       'reac' => true],
+    ':shock:'      => ['img' => 'shok.gif',         'title' => 'Шок',         'reac' => true],
+    ':smocking:'   => ['img' => 'smocking.gif',     'title' => 'Курю',        'reac' => true],
+    ':unsure:'     => ['img' => 'unsure.gif',       'title' => 'Не уверен',   'reac' => true],
+    ':poison:'     => ['img' => 'poisen.gif',       'title' => 'Яд',          'reac' => true],
+    ':flood:'      => ['img' => 'flood.gif',        'title' => 'Флуд',        'reac' => true],
+    ':gentleman:'  => ['img' => 'gentleman.gif',    'title' => 'Джентльмен',  'reac' => true],
+    ':gentleman_hi:'=> ['img' => 'gentleman_hi.gif','title' => 'Приветствие', 'reac' => true],
+    ':green_gentleman:' => ['img' => 'green_gentleman.gif', 'title' => 'Грин-джентльмен', 'reac' => true],
+    ':king:'       => ['img' => 'king.gif',         'title' => 'Король',      'reac' => true],
+    ':paladin:'    => ['img' => 'paladin.gif',      'title' => 'Паладин',     'reac' => true],
+    ':wizard:'     => ['img' => 'wizard.gif',       'title' => 'Маг',         'reac' => true],
+    ':santa:'      => ['img' => 'santa2.gif',       'title' => 'Санта',       'reac' => true],
+    ':snegurochka:'=> ['img' => 'snegurochka.gif',  'title' => 'Снегурочка',  'reac' => true],
+    ':singer:'     => ['img' => 'singer.gif',       'title' => 'Певец',       'reac' => true],
+    ':lazy:'       => ['img' => 'lazy3.gif',        'title' => 'Лень',        'reac' => true],
+    ':beta:'       => ['img' => 'beta.gif',         'title' => 'Бета',        'reac' => true],
+    ':search:'     => ['img' => 'search.gif',       'title' => 'Ищу',         'reac' => true],
+    ':help:'       => ['img' => 'help.gif',         'title' => 'Помогите',    'reac' => true],
+    ':order:'      => ['img' => 'to_keep_order.gif','title' => 'К порядку',   'reac' => true],
+    ':meeting:'    => ['img' => 'meeting.gif',      'title' => 'Встреча',     'reac' => true],
+    ':censored:'   => ['img' => 'cencored.gif',     'title' => 'Цензура',     'reac' => true],
+];
 $adminID = 'admin';
 $rDir = 'rooms/';
 $up = 'uploads/';
@@ -9,6 +58,7 @@ $avatarDir = 'avatars/';
 $modDir = 'mods/';
 $reacDir = 'reacs/';
 $viewsDir = 'views_counter/';
+$loginsF  = $rDir . 'login_log.db.php';
 
 foreach([$rDir, $up, $avatarDir, $modDir, $reacDir, $viewsDir] as $dir) {
     if(!is_dir($dir)) @mkdir($dir, 0777);
@@ -142,26 +192,37 @@ function get_avatar_html($u, $name) {
 }
 
 function parse_msg($m, $msgID = '') {
+    global $SMILE_PACK;
     $m = htmlspecialchars($m, ENT_QUOTES, 'UTF-8');
-    $smiles = [
-        ':heart:' => 'heart.gif', ':hi:' => 'hi.gif', ':sarcasm:' => 'sarcasm.gif',
-        ':cool:' => 'good.gif', ':smile:' => 'smile.gif', ':fire:' => 'fire.gif',
-        '(ツ)' => 'smile.gif', '¯\_(ツ)_/¯' => 'smile.gif'
-    ];
-    foreach ($smiles as $code => $img) {
-        $m = str_replace($code, "<img src='smiles/$img' width='18' height='18' style='vertical-align:middle;' title='" . e($code) . "'>", $m);
+
+    // Автозамена смайлов из реестра
+    foreach ($SMILE_PACK as $code => $s) {
+        $m = str_replace(
+            $code,
+            "<img src='smiles/" . e($s['img']) . "' width='18' height='18' style='vertical-align:middle;' title='" . e($s['title']) . "'>",
+            $m
+        );
     }
+
+    // Псевдонимы (текстовые)
+    $m = str_replace('(ツ)',         "<img src='smiles/smile.gif' width='18' height='18' style='vertical-align:middle;'>", $m);
+    $m = str_replace('¯\_(ツ)_/¯',   "<img src='smiles/smile.gif' width='18' height='18' style='vertical-align:middle;'>", $m);
+
     // Аудио
     $m = preg_replace('/\[file\](uploads\/[a-z0-9]+\.(?:amr|mp3|ogg|wav|m4a))\[\/file\]/i',
         '<br><audio controls preload="none" src="$1" class="audio-msg"></audio>', $m);
+
     // Картинки
     $m = preg_replace('/\[img\](uploads\/[a-z0-9]+\.(?:png|jpg|jpeg|gif))\[\/img\]/i',
         '<br><img src="$1" style="max-width:100%; border-radius:5px; margin-top:5px;">', $m);
+
     // Файлы
     $m = preg_replace('/\[file\](uploads\/[a-z0-9]+\.[a-z0-9]+)\[\/file\]/i',
         '<br><a href="$1" style="display:inline-block; background:#eee; padding:4px; border:1px solid #777; text-decoration:none; color:#333; font-size:10px;">Файл</a>', $m);
+
     // Опросы
     if ($msgID !== '') $m = parse_polls($m, $msgID);
+
     return nl2br($m);
 }
 
@@ -1744,15 +1805,61 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.</textarea>
     // code — текстовый код для вставки в сообщение,
     // img  — картинка из папки smiles/,
     // title — подсказка.
-    $pickerSmiles = [
-        ':fire:'    => ['img' => 'fire.gif',    'title' => 'Огонь'],
-        ':smile:'   => ['img' => 'smile.gif',   'title' => 'Улыбка'],
-        ':cool:'    => ['img' => 'good.gif',    'title' => 'Класс'],
-        ':heart:'   => ['img' => 'heart.gif',   'title' => 'Сердце'],
-        ':hi:'      => ['img' => 'hi.gif',      'title' => 'Привет'],
-        ':sarcasm:' => ['img' => 'sarcasm.gif', 'title' => 'Сарказм'],
-    ];
-    foreach($pickerSmiles as $code => $s) {
+  /* ---------- Реестр смайлов ---------- */
+$SMILE_PACK = [
+    ':smile:'      => ['img' => 'smile.gif',        'title' => 'Улыбка',      'reac' => true],
+    ':fire:'       => ['img' => 'fire.gif',         'title' => 'Огонь',       'reac' => true],
+    ':cool:'       => ['img' => 'good.gif',         'title' => 'Класс',       'reac' => true],
+    ':heart:'      => ['img' => 'heart.gif',        'title' => 'Сердце',      'reac' => true],
+    ':hi:'         => ['img' => 'hi.gif',           'title' => 'Привет',      'reac' => true],
+    ':sarcasm:'    => ['img' => 'sarcasm.gif',      'title' => 'Сарказм',     'reac' => true],
+
+    ':happy:'      => ['img' => 'happy_yes.gif',    'title' => 'Радость',     'reac' => true],
+    ':dance:'      => ['img' => 'happy_dancing.gif','title' => 'Танцую',      'reac' => true],
+    ':lol:'        => ['img' => 'haha.gif',         'title' => 'Смех',        'reac' => true],
+    ':rofl:'       => ['img' => 'rofl.gif',         'title' => 'Ржу',         'reac' => true],
+    ':yeah:'       => ['img' => 'Yeahh.gif',        'title' => 'Yeah!',       'reac' => true],
+    ':like:'       => ['img' => 'like.gif',         'title' => 'Like',        'reac' => true],
+    ':victory:'    => ['img' => 'victory.gif',      'title' => 'Победа',      'reac' => true],
+    ':party:'      => ['img' => 'santa2.gif',       'title' => 'Праздник',    'reac' => true],
+
+    ':cry:'        => ['img' => 'crying_girl.gif',  'title' => 'Плачу',       'reac' => true],
+    ':sorry:'      => ['img' => 'sorry.gif',        'title' => 'Прости',      'reac' => true],
+    ':sad:'        => ['img' => 'not_i.gif',        'title' => 'Не я',        'reac' => true],
+    ':angry:'      => ['img' => 'angry2.gif',       'title' => 'Злой',        'reac' => true],
+    ':angrypink:'  => ['img' => 'angrypink.gif',    'title' => 'Злая',        'reac' => true],
+    ':aggressive:' => ['img' => 'aggressive.gif',   'title' => 'Агрессия',    'reac' => true],
+    ':shout:'      => ['img' => 'shout.gif',        'title' => 'Крик',        'reac' => true],
+    ':stop:'       => ['img' => 'stop.gif',         'title' => 'Стоп',        'reac' => true],
+    ':no:'         => ['img' => 'no.gif',           'title' => 'Нет',         'reac' => true],
+    ':nono:'       => ['img' => 'nono.gif',         'title' => 'Не-не',       'reac' => true],
+    ':skull:'      => ['img' => 'skull.gif',        'title' => 'Череп',       'reac' => true],
+
+    ':shock:'      => ['img' => 'shok.gif',         'title' => 'Шок',         'reac' => true],
+    ':smocking:'   => ['img' => 'smocking.gif',     'title' => 'Курю',        'reac' => true],
+    ':unsure:'     => ['img' => 'unsure.gif',       'title' => 'Не уверен',   'reac' => true],
+    ':poison:'     => ['img' => 'poisen.gif',       'title' => 'Яд',          'reac' => true],
+    ':flood:'      => ['img' => 'flood.gif',        'title' => 'Флуд',        'reac' => true],
+
+    ':gentleman:'  => ['img' => 'gentleman.gif',    'title' => 'Джентльмен',  'reac' => true],
+    ':gentleman_hi:'=> ['img' => 'gentleman_hi.gif','title' => 'Приветствие', 'reac' => true],
+    ':green_gentleman:' => ['img' => 'green_gentleman.gif', 'title' => 'Грин-джентльмен', 'reac' => true],
+    ':king:'       => ['img' => 'king.gif',         'title' => 'Король',      'reac' => true],
+    ':paladin:'    => ['img' => 'paladin.gif',      'title' => 'Паладин',     'reac' => true],
+    ':wizard:'     => ['img' => 'wizard.gif',       'title' => 'Маг',         'reac' => true],
+    ':santa:'      => ['img' => 'santa2.gif',       'title' => 'Санта',       'reac' => true],
+    ':snegurochka:'=> ['img' => 'snegurochka.gif',  'title' => 'Снегурочка',  'reac' => true],
+    ':singer:'     => ['img' => 'singer.gif',       'title' => 'Певец',       'reac' => true],
+    ':lazy:'       => ['img' => 'lazy3.gif',        'title' => 'Лень',        'reac' => true],
+    ':beta:'       => ['img' => 'beta.gif',         'title' => 'Бета',        'reac' => true],
+
+    ':search:'     => ['img' => 'search.gif',       'title' => 'Ищу',         'reac' => true],
+    ':help:'       => ['img' => 'help.gif',         'title' => 'Помогите',    'reac' => true],
+    ':order:'      => ['img' => 'to_keep_order.gif','title' => 'К порядку',   'reac' => true],
+    ':meeting:'    => ['img' => 'meeting.gif',      'title' => 'Встреча',     'reac' => true],
+    ':censored:'   => ['img' => 'cencored.gif',     'title' => 'Цензура',     'reac' => true],
+];
+    foreach($SMILE_PACK as $code => $s) {
         echo '<button type="button" class="emoji-btn" data-emo="' . e($code) . '" title="' . e($s['title']) . '">';
         echo '<img src="smiles/' . e($s['img']) . '" width="20" height="20" alt="' . e($s['title']) . '">';
         echo '</button>';
